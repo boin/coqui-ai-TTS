@@ -93,33 +93,32 @@ class Synthesizer(nn.Module):
         if self.use_cuda:
             assert torch.cuda.is_available(), "CUDA is not availabe on this machine."
 
-        self.checkpoint_dir = None
+        checkpoint_dir = None
         if tts_checkpoint:
             self._load_tts(self.tts_checkpoint, self.tts_config_path, use_cuda)
-            self.checkpoint_dir = Path(self.tts_checkpoint)
+            checkpoint_dir = Path(self.tts_checkpoint)
 
         if vc_checkpoint and model_dir == "":
             self._load_vc(self.vc_checkpoint, self.vc_config, use_cuda)
-            self.checkpoint_dir = Path(self.vc_checkpoint)
+            checkpoint_dir = Path(self.vc_checkpoint)
 
         if vocoder_checkpoint:
             self._load_vocoder(self.vocoder_checkpoint, self.vocoder_config, use_cuda)
 
         if model_dir:
-            path = Path(model_dir)
-            self.checkpoint_dir = path if path.is_dir() else path.parent
+            dir_or_file = Path(model_dir)
+            checkpoint_dir = dir_or_file if dir_or_file.is_dir() else dir_or_file.parent
             if "fairseq" in model_dir:
                 self._load_fairseq_from_dir(model_dir, use_cuda)
             elif "openvoice" in model_dir:
-                self._load_openvoice_from_dir(Path(model_dir), use_cuda)
+                self._load_openvoice_from_dir(dir_or_file, use_cuda)
             else:
-                self._load_tts_from_dir(model_dir, use_cuda)
+                self._load_tts_from_dir(dir_or_file, use_cuda)
 
-        if self.checkpoint_dir is None:
+        if checkpoint_dir is None:
             msg = "Need to initialize a TTS or VC model via tts_checkpoint/vc_checkpoint/model_dir"
             raise RuntimeError(msg)
-
-        self.voice_dir = Path(voice_dir) if voice_dir is not None else self.checkpoint_dir / "voices"
+        self.voice_dir = Path(voice_dir) if voice_dir is not None else checkpoint_dir / "voices"
 
     @staticmethod
     def _get_segmenter(lang: str):
@@ -183,16 +182,22 @@ class Synthesizer(nn.Module):
         if use_cuda:
             self.vc_model.cuda()
 
-    def _load_tts_from_dir(self, model_dir: str, use_cuda: bool) -> None:
+    def _load_tts_from_dir(self, dir_or_file: Path, use_cuda: bool) -> None:
         """Load the TTS model from a directory.
 
         We assume the model knows how to load itself from the directory and there is a config.json file in the directory.
         """
-        config = load_config(os.path.join(model_dir, "config.json"))
-        self.tts_config = config
-        self.output_sample_rate = self.tts_config.audio["output_sample_rate"]
-        self.tts_model = setup_tts_model(config)
-        self.tts_model.load_checkpoint(config, checkpoint_dir=model_dir, eval=True)
+        checkpoint_dir = dir_or_file if dir_or_file.is_dir() else dir_or_file.parent
+        self.tts_config = load_config(checkpoint_dir / "config.json")
+        if "output_sample_rate" in self.tts_config.audio:
+            self.output_sample_rate = self.tts_config.audio["output_sample_rate"]
+        else:
+            self.output_sample_rate = self.tts_config.audio["sample_rate"]
+        self.tts_model = setup_tts_model(self.tts_config)
+        if dir_or_file.is_dir():
+            self.tts_model.load_checkpoint(self.tts_config, checkpoint_dir=dir_or_file, eval=True)
+        else:
+            self.tts_model.load_checkpoint(self.tts_config, checkpoint_path=dir_or_file, eval=True)
         if use_cuda:
             self.tts_model.cuda()
 
