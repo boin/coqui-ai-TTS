@@ -94,7 +94,7 @@ def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
         help="Path to the evaluation meta file. If not set, dataset formatter uses the default metafile if it is defined in the formatter. You either need to provide this or `config_dataset_path`",
         default=None,
     )
-    return parser.parse_args()
+    return parser.parse_args(arg_list)
 
 
 def compute_embeddings(
@@ -178,6 +178,7 @@ def compute_embeddings(
 
         save_file(speaker_mapping, mapping_file_path)
         print("Speaker embeddings saved at:", mapping_file_path)
+    sys.exit(0)
 
 
 def main(arg_list: list[str] | None = None):
