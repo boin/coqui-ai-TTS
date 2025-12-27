@@ -1,12 +1,13 @@
 import logging
 import os
 import random
-from typing import Any
+from typing import Any, Literal
 
 import torch
 import torch.distributed as dist
 from coqpit import Coqpit
 from torch import nn
+from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
 from trainer.logging.base_dash_logger import BaseDashboardLogger
@@ -501,7 +502,7 @@ class BaseTTS(CloningMixin, BaseTrainerModel):
 
         if len(self.speaker_manager.name_to_id) == 1:
             speaker_id = list(self.speaker_manager.name_to_id.values())[0]
-            return torch.tensor(speaker_id, device=self.device), None
+            return torch.tensor([speaker_id], device=self.device), None
 
         speaker_exists = True
         if get_from_config_or_model_args(self.config, "use_d_vector_file") and speaker is not None:
@@ -514,7 +515,7 @@ class BaseTTS(CloningMixin, BaseTrainerModel):
         if get_from_config_or_model_args(self.config, "use_speaker_embedding") and speaker is not None:
             if speaker in self.speaker_manager.name_to_id:
                 speaker_id = self.speaker_manager.name_to_id[speaker]
-                return torch.tensor(speaker_id, device=self.device), None
+                return torch.tensor([speaker_id], device=self.device), None
             speaker_exists = False
 
         if self.speaker_manager.encoder is not None and (speaker is not None or speaker_wav is not None):
@@ -530,6 +531,47 @@ class BaseTTS(CloningMixin, BaseTrainerModel):
             "You need to pass either a speaker name or a reference audio file."
         )
         raise ValueError(msg)
+
+    def _get_speaker_conditioning(
+        self,
+        aux_input: dict[str, Any],
+        spk_emb_module_name: str = "speaker_embedding",
+        *,
+        normalize_d_vector: bool = True,
+        normalize_embedding: bool = True,
+        output_shape: Literal["BCT", "BTC"] = "BCT",
+    ) -> torch.Tensor | None:
+        """Return speaker conditioning vector for multi-speaker models.
+
+        Output shape: [b, h, 1]
+        """
+        sid = aux_input.get("speaker_ids")
+        g = aux_input.get("d_vectors")
+
+        if sid is not None and g is not None:
+            msg = "Cannot use both speaker_ids and d_vectors simultaneously. "
+            raise ValueError(msg)
+
+        if g is not None and normalize_d_vector:
+            g = F.normalize(g)
+        if get_from_config_or_model_args(self.config, "use_speaker_embedding") and sid is not None:
+            spk_emb_module = getattr(self, spk_emb_module_name, None)
+            if spk_emb_module is None:
+                msg = "Speaker embedding requested but no embedding module provided"
+                raise RuntimeError(msg)
+            g = spk_emb_module(sid)
+            assert g.ndim == 2
+            if normalize_embedding:
+                g = F.normalize(g)
+        if g is not None:
+            if output_shape == "BCT":
+                g = g.unsqueeze(-1)
+            elif output_shape == "BTC":
+                g = g.unsqueeze(1)
+            else:
+                msg = f"Invalid output shape `{output_shape}`. Use `BCT` or `BTC`."
+                raise ValueError(msg)
+        return g
 
     def _clone_voice(
         self, speaker_wav: str | os.PathLike[Any] | list[str | os.PathLike[Any]], **kwargs
@@ -580,7 +622,7 @@ class BaseTTS(CloningMixin, BaseTrainerModel):
         _speaker_id, d_vector = self._get_speaker_id_or_dvector(speaker, speaker_wav, voice_dir)
         text_inputs = torch.as_tensor(text_inputs, dtype=torch.long, device=self.device).unsqueeze(0)
         if language_id is not None:
-            language_id = torch.tensor(language_id, device=self.device)
+            language_id = torch.tensor([language_id], device=self.device)
 
         if extra_aux_input is None:
             extra_aux_input = {}

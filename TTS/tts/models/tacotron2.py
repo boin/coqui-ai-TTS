@@ -1,3 +1,5 @@
+from typing import Any
+
 import torch
 from torch import nn
 from trainer.trainer_utils import get_optimizer, get_scheduler
@@ -149,7 +151,7 @@ class Tacotron2(BaseTacotron):
         return mel_outputs, mel_outputs_postnet, alignments
 
     def forward(  # pylint: disable=dangerous-default-value
-        self, text, text_lengths, mel_specs=None, mel_lengths=None, aux_input={"speaker_ids": None, "d_vectors": None}
+        self, text, text_lengths, mel_specs=None, mel_lengths=None, aux_input: dict[str, Any] | None = None
     ):
         """Forward pass for training with Teacher Forcing.
 
@@ -160,6 +162,8 @@ class Tacotron2(BaseTacotron):
             mel_lengths: :math:`[B]`
             aux_input: 'speaker_ids': :math:`[B, 1]` and  'd_vectors': :math:`[B, C]`
         """
+        if aux_input is None:
+            aux_input = {"speaker_ids": None, "d_vectors": None}
         aux_input = self._format_aux_input(aux_input)
         outputs = {"alignments_backward": None, "decoder_outputs_backward": None}
         # compute mask for padding
@@ -173,13 +177,10 @@ class Tacotron2(BaseTacotron):
             # B x gst_dim
             encoder_outputs = self.compute_gst(encoder_outputs, mel_specs)
 
-        if self.use_speaker_embedding or self.use_d_vector_file:
-            if not self.use_d_vector_file:
-                # B x 1 x speaker_embed_dim
-                embedded_speakers = self.speaker_embedding(aux_input["speaker_ids"])[:, None]
-            else:
-                # B x 1 x speaker_embed_dim
-                embedded_speakers = torch.unsqueeze(aux_input["d_vectors"], 1)
+        embedded_speakers = self._get_speaker_conditioning(
+            aux_input, "speaker_embedding", normalize_d_vector=False, normalize_embedding=False, output_shape="BTC"
+        )
+        if embedded_speakers is not None:
             encoder_outputs = self._concat_speaker_embedding(encoder_outputs, embedded_speakers)
 
         # capacitron
@@ -274,16 +275,13 @@ class Tacotron2(BaseTacotron):
             )
 
         if self.num_speakers > 1:
-            if not self.use_d_vector_file:
-                embedded_speakers = self.speaker_embedding(aux_input["speaker_ids"])[None]
-                # reshape embedded_speakers
-                if embedded_speakers.ndim == 1:
-                    embedded_speakers = embedded_speakers[None, None, :]
-                elif embedded_speakers.ndim == 2:
-                    embedded_speakers = embedded_speakers[None, :]
-            else:
-                embedded_speakers = aux_input["d_vectors"]
-
+            embedded_speakers = self._get_speaker_conditioning(
+                aux_input,
+                "speaker_embedding",
+                normalize_d_vector=False,
+                normalize_embedding=False,
+                output_shape="BTC",
+            )
             encoder_outputs = self._concat_speaker_embedding(encoder_outputs, embedded_speakers)
 
         decoder_outputs, alignments, stop_tokens = self.decoder.inference(encoder_outputs)

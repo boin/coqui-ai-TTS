@@ -7,7 +7,6 @@ import torch
 from coqpit import Coqpit
 from monotonic_alignment_search import maximum_path
 from torch import nn
-from torch.nn import functional as F
 
 from TTS.tts.configs.glow_tts_config import GlowTTSConfig
 from TTS.tts.layers.glow_tts.decoder import Decoder
@@ -161,38 +160,7 @@ class GlowTTS(BaseTTS):
             if getattr(f, "set_ddi", False):
                 f.set_ddi(False)
 
-    def _set_speaker_input(self, aux_input: dict):
-        if aux_input is None:
-            d_vectors = None
-            speaker_ids = None
-        else:
-            d_vectors = aux_input.get("d_vectors", None)
-            speaker_ids = aux_input.get("speaker_ids", None)
-
-        if d_vectors is not None and speaker_ids is not None:
-            raise ValueError("[!] Cannot use d-vectors and speaker-ids together.")
-
-        if speaker_ids is not None and not hasattr(self, "emb_g"):
-            raise ValueError("[!] Cannot use speaker-ids without enabling speaker embedding.")
-
-        g = speaker_ids if speaker_ids is not None else d_vectors
-        return g
-
-    def _speaker_embedding(self, aux_input: dict) -> torch.Tensor | None:
-        g = self._set_speaker_input(aux_input)
-        # speaker embedding
-        if g is not None:
-            if hasattr(self, "emb_g"):
-                # use speaker embedding layer
-                if not g.size():  # if is a scalar
-                    g = g.unsqueeze(0)  # unsqueeze
-                g = F.normalize(self.emb_g(g)).unsqueeze(-1)  # [b, h, 1]
-            else:
-                # use d-vector
-                g = F.normalize(g).unsqueeze(-1)  # [b, h, 1]
-        return g
-
-    def forward(self, x, x_lengths, y, y_lengths=None, aux_input={"d_vectors": None, "speaker_ids": None}):  # pylint: disable=dangerous-default-value
+    def forward(self, x, x_lengths, y, y_lengths=None, aux_input: dict[str, Any] | None = None):
         """
         Args:
             x (torch.Tensor):
@@ -222,11 +190,13 @@ class GlowTTS(BaseTTS):
                 - durations_log: :math:`[B, T_en, 1]`
                 - total_durations_log: :math:`[B, T_en, 1]`
         """
+        if aux_input is None:
+            aux_input = {"d_vectors": None, "speaker_ids": None}
         # [B, T, C] -> [B, C, T]
         y = y.transpose(1, 2)
         y_max_length = y.size(2)
         # norm speaker embeddings
-        g = self._speaker_embedding(aux_input)
+        g = self._get_speaker_conditioning(aux_input, "emb_g")
         # embedding pass
         o_mean, o_log_scale, o_dur_log, x_mask = self.encoder(x, x_lengths, g=g)
         # drop redisual frames wrt num_squeeze and set y_lengths.
@@ -260,9 +230,7 @@ class GlowTTS(BaseTTS):
         return outputs
 
     @torch.inference_mode()
-    def inference_with_MAS(
-        self, x, x_lengths, y=None, y_lengths=None, aux_input={"d_vectors": None, "speaker_ids": None}
-    ):  # pylint: disable=dangerous-default-value
+    def inference_with_MAS(self, x, x_lengths, y=None, y_lengths=None, aux_input: dict[str, Any] | None = None):
         """
         It's similar to the teacher forcing in Tacotron.
         It was proposed in: https://arxiv.org/abs/2104.05557
@@ -274,10 +242,12 @@ class GlowTTS(BaseTTS):
             - y_lengths: :math:`B`
             - g: :math:`[B, C] or B`
         """
+        if aux_input is None:
+            aux_input = {"d_vectors": None, "speaker_ids": None}
         y = y.transpose(1, 2)
         y_max_length = y.size(2)
         # norm speaker embeddings
-        g = self._speaker_embedding(aux_input)
+        g = self._get_speaker_conditioning(aux_input, "emb_g")
         # embedding pass
         o_mean, o_log_scale, o_dur_log, x_mask = self.encoder(x, x_lengths, g=g)
         # drop redisual frames wrt num_squeeze and set y_lengths.
@@ -325,7 +295,7 @@ class GlowTTS(BaseTTS):
         """
         y = y.transpose(1, 2)
         y_max_length = y.size(2)
-        g = self._speaker_embedding(aux_input)
+        g = self._get_speaker_conditioning(aux_input, "emb_g")
         y_mask = torch.unsqueeze(sequence_mask(y_lengths, y_max_length), 1).to(y.dtype)
         # decoder pass
         z, logdet = self.decoder(y, y_mask, g=g, reverse=False)
@@ -337,9 +307,11 @@ class GlowTTS(BaseTTS):
         return outputs
 
     @torch.inference_mode()
-    def inference(self, x, aux_input={"x_lengths": None, "d_vectors": None, "speaker_ids": None}):  # pylint: disable=dangerous-default-value
+    def inference(self, x, aux_input: dict[str, Any] | None = None):
+        if aux_input is None:
+            aux_input = {"x_lengths": None, "d_vectors": None, "speaker_ids": None}
         x_lengths = aux_input["x_lengths"]
-        g = self._speaker_embedding(aux_input)
+        g = self._get_speaker_conditioning(aux_input, "emb_g")
         # embedding pass
         o_mean, o_log_scale, o_dur_log, x_mask = self.encoder(x, x_lengths, g=g)
         # compute output durations
