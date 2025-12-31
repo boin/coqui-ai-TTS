@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import re
@@ -9,7 +8,6 @@ from pathlib import Path
 from shutil import copyfile, rmtree
 from typing import Any, TypedDict
 
-import fsspec
 import requests
 from tqdm import tqdm
 from trainer.io import get_user_data_dir
@@ -373,22 +371,6 @@ class ModelManager:
             checkpoints[0].rename(checkpoints[0].parent / "model.pth")
         self.print_model_license(model_item=model_item)
 
-    def check_if_configs_are_equal(self, model_name: str, model_item: ModelItem, output_path: Path) -> None:
-        with fsspec.open(self._find_files(output_path)[1], "r", encoding="utf-8") as f:
-            config_local = json.load(f)
-        remote_url = None
-        for url in model_item["hf_url"]:
-            if "config.json" in url:
-                remote_url = url
-                break
-
-        with fsspec.open(remote_url, "r", encoding="utf-8") as f:
-            config_remote = json.load(f)
-
-        if not config_local == config_remote:
-            logger.info("%s is already downloaded however it has been changed. Redownloading it...", model_name)
-            self.create_dir_and_download_model(model_name, model_item, output_path)
-
     def download_model(self, model_name: str) -> tuple[Path, Path | None, ModelItem]:
         """Download model files given the full model name.
         Model name is in the format
@@ -419,15 +401,7 @@ class ModelManager:
                 else:
                     logger.info("%s has been updated, clearing model cache...", model_name)
                     self.create_dir_and_download_model(model_name, model_item, output_path)
-            # if the configs are different, redownload it
-            # ToDo: we need a better way to handle it
-            if "xtts" in model_name:
-                try:
-                    self.check_if_configs_are_equal(model_name, model_item, output_path)
-                except:
-                    pass
-            else:
-                logger.info("%s is already downloaded.", model_name)
+            logger.info("%s is already downloaded.", model_name)
         else:
             self.create_dir_and_download_model(model_name, model_item, output_path)
 
