@@ -68,7 +68,7 @@ class BaseVC(BaseTrainerModel):
         else:
             raise ValueError("config must be either a *Config or *Args")
 
-    def init_multispeaker(self, config: Coqpit, data: list[Any] | None = None) -> None:
+    def init_multispeaker(self, config: Coqpit) -> None:
         """Set up for multi-speaker use.
 
         Initialize a speaker embedding layer if needed and define the expected

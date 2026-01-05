@@ -179,7 +179,7 @@ class OpenVoice(CloningMixin, BaseVC):
     def init_from_config(config: OpenVoiceConfig) -> "OpenVoice":
         return OpenVoice(config)
 
-    def init_multispeaker(self, config: Coqpit, data: list[Any] | None = None) -> None:
+    def init_multispeaker(self, config: Coqpit) -> None:
         """Initialize multi-speaker modules of a model. A model can be trained either with a speaker embedding layer
         or with external `d_vectors` computed from a speaker encoder model.
 
@@ -187,7 +187,6 @@ class OpenVoice(CloningMixin, BaseVC):
 
         Args:
             config (Coqpit): Model configuration.
-            data (list, optional): Dataset items to infer number of speakers. Defaults to None.
         """
         self.num_spks = config.num_speakers
         if self.speaker_manager:

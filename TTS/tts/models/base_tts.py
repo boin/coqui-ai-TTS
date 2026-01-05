@@ -79,7 +79,7 @@ class BaseTTS(CloningMixin, BaseTrainerModel):
         else:
             raise ValueError("config must be either a *Config or *Args")
 
-    def init_multispeaker(self, config: Coqpit, data: list = None):
+    def init_multispeaker(self, config: Coqpit):
         """Set up for multi-speaker TTS.
 
         Initialize a speaker embedding layer if needed and define expected embedding
