@@ -147,7 +147,7 @@ class BaseTTS(CloningMixin, BaseTrainerModel):
             "language": language,
         }
 
-    def format_batch(self, batch: dict) -> dict:
+    def format_batch(self, batch: dict[str, Any]) -> dict[str, Any]:
         """Generic batch formatting for `TTSDataset`.
 
         You must override this if you use a custom dataset.
@@ -274,77 +274,73 @@ class BaseTTS(CloningMixin, BaseTrainerModel):
         num_gpus: int,
         rank: int | None = None,
     ) -> "DataLoader":
-        if is_eval and not config.run_eval:
-            loader = None
+        # setup multi-speaker attributes
+        if self.speaker_manager is not None:
+            if config.model_args is not None:
+                speaker_id_mapping = (
+                    self.speaker_manager.name_to_id if config.model_args.use_speaker_embedding else None
+                )
+                d_vector_mapping = self.speaker_manager.embeddings if config.model_args.use_d_vector_file else None
+                config.use_d_vector_file = config.model_args.use_d_vector_file
+            else:
+                speaker_id_mapping = self.speaker_manager.name_to_id if config.use_speaker_embedding else None
+                d_vector_mapping = self.speaker_manager.embeddings if config.use_d_vector_file else None
         else:
-            # setup multi-speaker attributes
-            if self.speaker_manager is not None:
-                if config.model_args is not None:
-                    speaker_id_mapping = (
-                        self.speaker_manager.name_to_id if config.model_args.use_speaker_embedding else None
-                    )
-                    d_vector_mapping = self.speaker_manager.embeddings if config.model_args.use_d_vector_file else None
-                    config.use_d_vector_file = config.model_args.use_d_vector_file
-                else:
-                    speaker_id_mapping = self.speaker_manager.name_to_id if config.use_speaker_embedding else None
-                    d_vector_mapping = self.speaker_manager.embeddings if config.use_d_vector_file else None
-            else:
-                speaker_id_mapping = None
-                d_vector_mapping = None
+            speaker_id_mapping = None
+            d_vector_mapping = None
 
-            # setup multi-lingual attributes
-            if self.language_manager is not None:
-                language_id_mapping = self.language_manager.name_to_id if self.args.use_language_embedding else None
-            else:
-                language_id_mapping = None
+        # setup multi-lingual attributes
+        if self.language_manager is not None:
+            language_id_mapping = self.language_manager.name_to_id if self.args.use_language_embedding else None
+        else:
+            language_id_mapping = None
 
-            # init dataloader
-            dataset = TTSDataset(
-                outputs_per_step=config.r if "r" in config else 1,
-                compute_linear_spec=config.model.lower() == "tacotron" or config.compute_linear_spec,
-                compute_f0=config.get("compute_f0", False),
-                f0_cache_path=config.get("f0_cache_path", None),
-                compute_energy=config.get("compute_energy", False),
-                energy_cache_path=config.get("energy_cache_path", None),
-                samples=samples,
-                ap=self.ap,
-                return_wav=config.return_wav if "return_wav" in config else False,
-                batch_group_size=0 if is_eval else config.batch_group_size * config.batch_size,
-                min_text_len=config.min_text_len,
-                max_text_len=config.max_text_len,
-                min_audio_len=config.min_audio_len,
-                max_audio_len=config.max_audio_len,
-                phoneme_cache_path=config.phoneme_cache_path,
-                precompute_num_workers=config.precompute_num_workers,
-                use_noise_augment=False if is_eval else config.use_noise_augment,
-                speaker_id_mapping=speaker_id_mapping,
-                d_vector_mapping=d_vector_mapping if config.use_d_vector_file else None,
-                tokenizer=self.tokenizer,
-                start_by_longest=config.start_by_longest,
-                language_id_mapping=language_id_mapping,
-            )
+        # init dataloader
+        dataset = TTSDataset(
+            outputs_per_step=config.r if "r" in config else 1,
+            compute_linear_spec=config.model.lower() == "tacotron" or config.compute_linear_spec,
+            compute_f0=config.get("compute_f0", False),
+            f0_cache_path=config.get("f0_cache_path", None),
+            compute_energy=config.get("compute_energy", False),
+            energy_cache_path=config.get("energy_cache_path", None),
+            samples=samples,
+            ap=self.ap,
+            return_wav=config.return_wav if "return_wav" in config else False,
+            batch_group_size=0 if is_eval else config.batch_group_size * config.batch_size,
+            min_text_len=config.min_text_len,
+            max_text_len=config.max_text_len,
+            min_audio_len=config.min_audio_len,
+            max_audio_len=config.max_audio_len,
+            phoneme_cache_path=config.phoneme_cache_path,
+            precompute_num_workers=config.precompute_num_workers,
+            use_noise_augment=False if is_eval else config.use_noise_augment,
+            speaker_id_mapping=speaker_id_mapping,
+            d_vector_mapping=d_vector_mapping if config.use_d_vector_file else None,
+            tokenizer=self.tokenizer,
+            start_by_longest=config.start_by_longest,
+            language_id_mapping=language_id_mapping,
+        )
 
-            # wait all the DDP process to be ready
-            if num_gpus > 1:
-                dist.barrier()
+        # wait all the DDP process to be ready
+        if num_gpus > 1:
+            dist.barrier()
 
-            # sort input sequences from short to long
-            dataset.preprocess_samples()
+        # sort input sequences from short to long
+        dataset.preprocess_samples()
 
-            # get samplers
-            sampler = self.get_sampler(config, dataset, num_gpus)
+        # get samplers
+        sampler = self.get_sampler(config, dataset, num_gpus)
 
-            loader = DataLoader(
-                dataset,
-                batch_size=config.eval_batch_size if is_eval else config.batch_size,
-                shuffle=config.shuffle if sampler is None else False,  # if there is no other sampler
-                collate_fn=dataset.collate_fn,
-                drop_last=config.drop_last,  # setting this False might cause issues in AMP training.
-                sampler=sampler,
-                num_workers=config.num_eval_loader_workers if is_eval else config.num_loader_workers,
-                pin_memory=False,
-            )
-        return loader
+        return DataLoader(
+            dataset,
+            batch_size=config.eval_batch_size if is_eval else config.batch_size,
+            shuffle=config.shuffle if sampler is None else False,  # if there is no other sampler
+            collate_fn=dataset.collate_fn,
+            drop_last=config.drop_last,  # setting this False might cause issues in AMP training.
+            sampler=sampler,
+            num_workers=config.num_eval_loader_workers if is_eval else config.num_loader_workers,
+            pin_memory=False,
+        )
 
     def _create_logs(
         self, batch: dict[str, Any], outputs: dict[str, Any] | list[dict[str, Any]]

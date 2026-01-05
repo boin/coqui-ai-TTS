@@ -361,42 +361,39 @@ class GPTTrainer(BaseTTS):
         num_gpus: int,
         rank: int | None = None,
     ) -> "DataLoader":  # pylint: disable=W0613
-        if is_eval and not config.run_eval:
-            loader = None
+        # init dataloader
+        dataset = XTTSDataset(self.config, samples, self.xtts.tokenizer, config.audio.sample_rate, is_eval)
+
+        # wait all the DDP process to be ready
+        if num_gpus > 1:
+            torch.distributed.barrier()
+
+        # sort input sequences from short to long
+        # dataset.preprocess_samples()
+
+        # get samplers
+        sampler = self.get_sampler(dataset, num_gpus)
+
+        # ignore sampler when is eval because if we changed the sampler parameter we will not be able to compare previous runs
+        if sampler is None or is_eval:
+            loader = DataLoader(
+                dataset,
+                batch_size=config.eval_batch_size if is_eval else config.batch_size,
+                shuffle=False,
+                drop_last=False,
+                collate_fn=dataset.collate_fn,
+                num_workers=config.num_eval_loader_workers if is_eval else config.num_loader_workers,
+                pin_memory=False,
+            )
         else:
-            # init dataloader
-            dataset = XTTSDataset(self.config, samples, self.xtts.tokenizer, config.audio.sample_rate, is_eval)
-
-            # wait all the DDP process to be ready
-            if num_gpus > 1:
-                torch.distributed.barrier()
-
-            # sort input sequences from short to long
-            # dataset.preprocess_samples()
-
-            # get samplers
-            sampler = self.get_sampler(dataset, num_gpus)
-
-            # ignore sampler when is eval because if we changed the sampler parameter we will not be able to compare previous runs
-            if sampler is None or is_eval:
-                loader = DataLoader(
-                    dataset,
-                    batch_size=config.eval_batch_size if is_eval else config.batch_size,
-                    shuffle=False,
-                    drop_last=False,
-                    collate_fn=dataset.collate_fn,
-                    num_workers=config.num_eval_loader_workers if is_eval else config.num_loader_workers,
-                    pin_memory=False,
-                )
-            else:
-                loader = DataLoader(
-                    dataset,
-                    sampler=sampler,
-                    batch_size=config.eval_batch_size if is_eval else config.batch_size,
-                    collate_fn=dataset.collate_fn,
-                    num_workers=config.num_eval_loader_workers if is_eval else config.num_loader_workers,
-                    pin_memory=False,
-                )
+            loader = DataLoader(
+                dataset,
+                sampler=sampler,
+                batch_size=config.eval_batch_size if is_eval else config.batch_size,
+                collate_fn=dataset.collate_fn,
+                num_workers=config.num_eval_loader_workers if is_eval else config.num_loader_workers,
+                pin_memory=False,
+            )
         return loader
 
     def get_optimizer(self) -> list:

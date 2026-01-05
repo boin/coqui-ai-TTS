@@ -1080,51 +1080,49 @@ class DelightfulTTS(BaseTTSE2E):
         num_gpus: int,
         rank: int | None = None,
     ) -> "DataLoader":
-        if is_eval and not config.run_eval:
-            loader = None
-        else:
-            # init dataloader
-            dataset = ForwardTTSE2eDataset(
-                samples=samples,
-                ap=self.ap,
-                batch_group_size=0 if is_eval else config.batch_group_size * config.batch_size,
-                min_text_len=config.min_text_len,
-                max_text_len=config.max_text_len,
-                min_audio_len=config.min_audio_len,
-                max_audio_len=config.max_audio_len,
-                phoneme_cache_path=config.phoneme_cache_path,
-                precompute_num_workers=config.precompute_num_workers,
-                compute_f0=config.compute_f0,
-                f0_cache_path=config.f0_cache_path,
-                attn_prior_cache_path=config.attn_prior_cache_path if config.use_attn_priors else None,
-                tokenizer=self.tokenizer,
-                start_by_longest=config.start_by_longest,
-            )
+        # init dataloader
+        dataset = ForwardTTSE2eDataset(
+            samples=samples,
+            ap=self.ap,
+            batch_group_size=0 if is_eval else config.batch_group_size * config.batch_size,
+            min_text_len=config.min_text_len,
+            max_text_len=config.max_text_len,
+            min_audio_len=config.min_audio_len,
+            max_audio_len=config.max_audio_len,
+            phoneme_cache_path=config.phoneme_cache_path,
+            precompute_num_workers=config.precompute_num_workers,
+            compute_f0=config.compute_f0,
+            f0_cache_path=config.f0_cache_path,
+            attn_prior_cache_path=config.attn_prior_cache_path if config.use_attn_priors else None,
+            tokenizer=self.tokenizer,
+            start_by_longest=config.start_by_longest,
+        )
 
-            # wait all the DDP process to be ready
-            if num_gpus > 1:
-                dist.barrier()
+        # wait all the DDP process to be ready
+        if num_gpus > 1:
+            dist.barrier()
 
-            # sort input sequences ascendingly by length
-            dataset.preprocess_samples()
+        # sort input sequences ascendingly by length
+        dataset.preprocess_samples()
 
-            # get samplers
-            sampler = self.get_sampler(config, dataset, num_gpus)
+        # get samplers
+        sampler = self.get_sampler(config, dataset, num_gpus)
 
-            loader = DataLoader(
-                dataset,
-                batch_size=config.eval_batch_size if is_eval else config.batch_size,
-                shuffle=False,  # shuffle is done in the dataset.
-                drop_last=False,  # setting this False might cause issues in AMP training.
-                sampler=sampler,
-                collate_fn=dataset.collate_fn,
-                num_workers=config.num_eval_loader_workers if is_eval else config.num_loader_workers,
-                pin_memory=True,
-            )
+        loader = DataLoader(
+            dataset,
+            batch_size=config.eval_batch_size if is_eval else config.batch_size,
+            shuffle=False,  # shuffle is done in the dataset.
+            drop_last=False,  # setting this False might cause issues in AMP training.
+            sampler=sampler,
+            collate_fn=dataset.collate_fn,
+            num_workers=config.num_eval_loader_workers if is_eval else config.num_loader_workers,
+            pin_memory=True,
+        )
 
-            # get pitch mean and std
-            self.pitch_mean = dataset.f0_dataset.mean
-            self.pitch_std = dataset.f0_dataset.std
+        # get pitch mean and std
+        self.pitch_mean = dataset.f0_dataset.mean
+        self.pitch_std = dataset.f0_dataset.std
+
         return loader
 
     def get_criterion(self):
