@@ -11,6 +11,7 @@ import torchaudio
 from coqpit import Coqpit
 from trainer.io import load_fsspec
 
+from TTS.config.shared_configs import ModelArgs
 from TTS.tts.configs.shared_configs import BaseTTSConfig
 from TTS.tts.layers.xtts.gpt import GPT
 from TTS.tts.layers.xtts.hifigan_decoder import HifiDecoder
@@ -116,7 +117,7 @@ class XttsAudioConfig(Coqpit):
 
 
 @dataclass
-class XttsArgs(Coqpit):
+class XttsArgs(ModelArgs):
     """A dataclass to represent XTTS model arguments that define the model structure.
 
     Args:

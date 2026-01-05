@@ -1,10 +1,10 @@
 from dataclasses import dataclass, field
 
 import torch
-from coqpit import Coqpit
 from monotonic_alignment_search import maximum_path
 from torch import nn
 
+from TTS.config.shared_configs import ModelArgs
 from TTS.tts.layers.align_tts.mdn import MDNBlock
 from TTS.tts.layers.feed_forward.decoder import Decoder
 from TTS.tts.layers.feed_forward.duration_predictor import DurationPredictor
@@ -18,7 +18,7 @@ from TTS.tts.utils.visual import plot_alignment, plot_spectrogram
 
 
 @dataclass
-class AlignTTSArgs(Coqpit):
+class AlignTTSArgs(ModelArgs):
     """
     Args:
         num_chars (int):

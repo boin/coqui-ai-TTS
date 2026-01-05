@@ -6,6 +6,7 @@ from coqpit import Coqpit
 from monotonic_alignment_search import maximum_path
 from torch import nn
 
+from TTS.config.shared_configs import ModelArgs
 from TTS.tts.layers.feed_forward.decoder import Decoder
 from TTS.tts.layers.feed_forward.encoder import Encoder
 from TTS.tts.layers.generic.aligner import AlignmentNetwork
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class ForwardTTSArgs(Coqpit):
+class ForwardTTSArgs(ModelArgs):
     """ForwardTTS Model arguments.
 
     Args:

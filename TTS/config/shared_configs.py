@@ -265,3 +265,8 @@ class BaseTrainingConfig(TrainerConfig):
     num_loader_workers: int = 0
     num_eval_loader_workers: int = 0
     use_noise_augment: bool = False
+
+
+@dataclass
+class ModelArgs(Coqpit):
+    """Parameters necessary for model instantiation."""

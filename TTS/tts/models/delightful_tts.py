@@ -16,6 +16,7 @@ from torch.utils.data.sampler import WeightedRandomSampler
 from trainer.torch import DistributedSampler, DistributedSamplerWrapper
 from trainer.trainer_utils import get_optimizer, get_scheduler
 
+from TTS.config.shared_configs import ModelArgs
 from TTS.tts.configs.shared_configs import BaseTTSConfig
 from TTS.tts.datasets.dataset import F0Dataset, TTSDataset, _parse_sample, get_attribute_balancer_weights
 from TTS.tts.layers.delightful_tts.acoustic_model import AcousticModel
@@ -317,7 +318,7 @@ class DelightfulTtsAudioConfig(Coqpit):
 
 
 @dataclass
-class DelightfulTtsArgs(Coqpit):
+class DelightfulTtsArgs(ModelArgs):
     num_chars: int = 100
     spec_segment_size: int = 32
     n_hidden_conformer_encoder: int = 512

@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 
 from TTS.config import BaseAudioConfig, BaseDatasetConfig, BaseTrainingConfig
+from TTS.config.shared_configs import ModelArgs
 
 
 @dataclass
@@ -114,6 +115,7 @@ class BaseVCConfig(BaseTrainingConfig):
     """
 
     audio: BaseAudioConfig = field(default_factory=BaseAudioConfig)
+    model_args: ModelArgs = field(default_factory=ModelArgs)
     # training params
     batch_group_size: int = 0
     loss_masking: bool = None

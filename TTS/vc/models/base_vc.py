@@ -12,12 +12,15 @@ from torch.utils.data.sampler import WeightedRandomSampler
 from trainer.torch import DistributedSampler, DistributedSamplerWrapper
 from trainer.trainer import Trainer
 
+from TTS.config import get_from_config_or_model_args
+from TTS.config.shared_configs import ModelArgs
 from TTS.model import BaseTrainerModel
 from TTS.tts.datasets.dataset import TTSDataset
 from TTS.tts.utils.data import get_length_balancer_weights
 from TTS.tts.utils.languages import LanguageManager, get_language_balancer_weights
 from TTS.tts.utils.speakers import SpeakerManager, get_speaker_balancer_weights
 from TTS.utils.audio.processor import AudioProcessor
+from TTS.vc.configs.shared_configs import BaseVCConfig
 
 # pylint: skip-file
 
@@ -44,9 +47,9 @@ class BaseVC(BaseTrainerModel):
         self.ap = ap
         self.speaker_manager = speaker_manager
         self.language_manager = language_manager
-        self._set_model_args(config)
+        self._set_model_args()
 
-    def _set_model_args(self, config: Coqpit) -> None:
+    def _set_model_args(self) -> None:
         """Set up model args based on the config type (``ModelConfig`` or ``ModelArgs``).
 
         ``ModelArgs`` has all the fields required to initialize the model architecture.
@@ -58,12 +61,10 @@ class BaseVC(BaseTrainerModel):
 
         If the config is for the model with a name like ``*Args``, then we assign them directly.
         """
-        # don't use isinstance not to import recursively
-        if "Config" in config.__class__.__name__:
-            self.config = config
-            self.args = config.model_args
-        elif "Args" in config.__class__.__name__:
-            self.args = config
+        if isinstance(self.config, BaseVCConfig):
+            self.args = self.config.model_args
+        elif isinstance(self.config, ModelArgs):
+            self.args = self.config
         else:
             raise ValueError("config must be either a *Config or *Args")
 
@@ -278,15 +279,15 @@ class BaseVC(BaseTrainerModel):
     ) -> "DataLoader":
         # setup multi-speaker attributes
         if self.speaker_manager is not None:
-            if hasattr(config, "model_args"):
-                speaker_id_mapping = (
-                    self.speaker_manager.name_to_id if config.model_args.use_speaker_embedding else None
-                )
-                d_vector_mapping = self.speaker_manager.embeddings if config.model_args.use_d_vector_file else None
-                config.use_d_vector_file = config.model_args.use_d_vector_file
-            else:
-                speaker_id_mapping = self.speaker_manager.name_to_id if config.use_speaker_embedding else None
-                d_vector_mapping = self.speaker_manager.embeddings if config.use_d_vector_file else None
+            speaker_id_mapping = (
+                self.speaker_manager.name_to_id
+                if get_from_config_or_model_args(config, "use_speaker_embedding")
+                else None
+            )
+            d_vector_mapping = (
+                self.speaker_manager.embeddings if get_from_config_or_model_args(config, "use_d_vector_file") else None
+            )
+            config.use_d_vector_file = get_from_config_or_model_args(config, "use_d_vector_file", False)
         else:
             speaker_id_mapping = None
             d_vector_mapping = None
@@ -382,9 +383,7 @@ class BaseVC(BaseTrainerModel):
             output_path = os.path.join(trainer.output_path, "speakers.pth")
             self.speaker_manager.save_ids_to_file(output_path)
             trainer.config.speakers_file = output_path
-            # some models don't have ``model_args`` set
-            if hasattr(trainer.config, "model_args"):
-                trainer.config.model_args.speakers_file = output_path
+            trainer.config.model_args.speakers_file = output_path
             trainer.config.save_json(os.path.join(trainer.output_path, "config.json"))
             logger.info("`speakers.pth` is saved to %s", output_path)
             logger.info("`speakers_file` is updated in the config.json.")
@@ -393,8 +392,7 @@ class BaseVC(BaseTrainerModel):
             output_path = os.path.join(trainer.output_path, "language_ids.json")
             self.language_manager.save_ids_to_file(output_path)
             trainer.config.language_ids_file = output_path
-            if hasattr(trainer.config, "model_args"):
-                trainer.config.model_args.language_ids_file = output_path
+            trainer.config.model_args.language_ids_file = output_path
             trainer.config.save_json(os.path.join(trainer.output_path, "config.json"))
             logger.info("`language_ids.json` is saved to %s", output_path)
             logger.info("`language_ids_file` is updated in the config.json.")

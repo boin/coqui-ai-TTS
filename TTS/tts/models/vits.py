@@ -20,6 +20,7 @@ from trainer.io import load_fsspec
 from trainer.torch import DistributedSampler, DistributedSamplerWrapper
 from trainer.trainer_utils import get_optimizer, get_scheduler
 
+from TTS.config.shared_configs import ModelArgs
 from TTS.tts.configs.shared_configs import CharactersConfig
 from TTS.tts.datasets.dataset import TTSDataset, _parse_sample, get_attribute_balancer_weights
 from TTS.tts.layers.glow_tts.duration_predictor import DurationPredictor
@@ -205,7 +206,7 @@ class VitsDataset(TTSDataset):
 
 
 @dataclass
-class VitsArgs(Coqpit):
+class VitsArgs(ModelArgs):
     """VITS model arguments.
 
     Args:

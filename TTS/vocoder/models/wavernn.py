@@ -10,6 +10,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
+from TTS.config.shared_configs import ModelArgs
 from TTS.tts.utils.visual import plot_spectrogram
 from TTS.utils.audio import AudioProcessor
 from TTS.utils.audio.numpy_transforms import mulaw_decode
@@ -132,7 +133,7 @@ class Upsample(nn.Module):
 
 
 @dataclass
-class WavernnArgs(Coqpit):
+class WavernnArgs(ModelArgs):
     """🐸 WaveRNN model arguments.
 
     rnn_dims (int):

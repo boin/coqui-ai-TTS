@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 
 from coqpit import Coqpit
 
+from TTS.config.shared_configs import ModelArgs
 from TTS.vc.configs.shared_configs import BaseVCConfig
 
 
@@ -50,7 +51,7 @@ class FreeVCAudioConfig(Coqpit):
 
 
 @dataclass
-class FreeVCArgs(Coqpit):
+class FreeVCArgs(ModelArgs):
     """FreeVC model arguments
 
     Args:

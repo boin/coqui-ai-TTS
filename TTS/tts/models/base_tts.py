@@ -13,6 +13,7 @@ from trainer.logging.base_dash_logger import BaseDashboardLogger
 from trainer.torch import DistributedSampler, DistributedSamplerWrapper
 
 from TTS.config import get_from_config_or_model_args
+from TTS.config.shared_configs import ModelArgs
 from TTS.model import BaseTrainerModel
 from TTS.tts.configs.shared_configs import BaseTTSConfig
 from TTS.tts.datasets.dataset import TTSDataset
@@ -51,9 +52,9 @@ class BaseTTS(CloningMixin, BaseTrainerModel):
         self.tokenizer = tokenizer
         self.speaker_manager = speaker_manager
         self.language_manager = language_manager
-        self._set_model_args(config)
+        self._set_model_args()
 
-    def _set_model_args(self, config: Coqpit):
+    def _set_model_args(self) -> None:
         """Setup model args based on the config type (`ModelConfig` or `ModelArgs`).
 
         `ModelArgs` has all the fields required to initialize the model architecture.
@@ -65,22 +66,15 @@ class BaseTTS(CloningMixin, BaseTrainerModel):
 
         If the config is for the model with a name like "*Args", then we assign them directly.
         """
-        # don't use isinstance not to import recursively
-        if "Config" in config.__class__.__name__:
-            config_num_chars = (
-                self.config.model_args.num_chars if self.config.model_args is not None else self.config.num_chars
-            )
+        if isinstance(self.config, BaseTTSConfig):
+            config_num_chars = get_from_config_or_model_args(self.config, "num_chars")
             num_chars = config_num_chars if self.tokenizer is None else self.tokenizer.characters.num_chars
-            if "characters" in config:
+            if "characters" in self.config:
                 self.config.num_chars = num_chars
-                if self.config.model_args is not None:
-                    config.model_args.num_chars = num_chars
-                    self.args = self.config.model_args
-            else:
-                self.config = config
-                self.args = config.model_args
-        elif "Args" in config.__class__.__name__:
-            self.args = config
+                self.config.model_args.num_chars = num_chars
+            self.args = self.config.model_args
+        elif isinstance(self.config, ModelArgs):
+            self.args = self.config
         else:
             raise ValueError("config must be either a *Config or *Args")
 
@@ -120,8 +114,6 @@ class BaseTTS(CloningMixin, BaseTrainerModel):
             self.speaker_embedding.weight.data.normal_(0, 0.3)
 
     def get_aux_input_from_test_sentences(self, sentence_info: str | list[str]) -> dict[str, Any]:
-        config = self.config.model_args if self.config.model_args is not None else self.config
-
         # extract speaker and language info
         text, speaker, style_wav, language = None, None, None, None
 
@@ -276,15 +268,15 @@ class BaseTTS(CloningMixin, BaseTrainerModel):
     ) -> "DataLoader":
         # setup multi-speaker attributes
         if self.speaker_manager is not None:
-            if config.model_args is not None:
-                speaker_id_mapping = (
-                    self.speaker_manager.name_to_id if config.model_args.use_speaker_embedding else None
-                )
-                d_vector_mapping = self.speaker_manager.embeddings if config.model_args.use_d_vector_file else None
-                config.use_d_vector_file = config.model_args.use_d_vector_file
-            else:
-                speaker_id_mapping = self.speaker_manager.name_to_id if config.use_speaker_embedding else None
-                d_vector_mapping = self.speaker_manager.embeddings if config.use_d_vector_file else None
+            speaker_id_mapping = (
+                self.speaker_manager.name_to_id
+                if get_from_config_or_model_args(config, "use_speaker_embedding")
+                else None
+            )
+            d_vector_mapping = (
+                self.speaker_manager.embeddings if get_from_config_or_model_args(config, "use_d_vector_file") else None
+            )
+            config.use_d_vector_file = get_from_config_or_model_args(config, "use_d_vector_file", False)
         else:
             speaker_id_mapping = None
             d_vector_mapping = None
@@ -456,9 +448,7 @@ class BaseTTS(CloningMixin, BaseTrainerModel):
             output_path = os.path.join(trainer.output_path, "speakers.pth")
             self.speaker_manager.save_ids_to_file(output_path)
             trainer.config.speakers_file = output_path
-            # some models don't have `model_args` set
-            if getattr(trainer.config, "model_args", None) is not None:
-                trainer.config.model_args.speakers_file = output_path
+            trainer.config.model_args.speakers_file = output_path
             trainer.config.save_json(os.path.join(trainer.output_path, "config.json"))
             logger.info("`speakers.pth` is saved to: %s", output_path)
             logger.info("`speakers_file` is updated in the config.json.")
@@ -466,9 +456,7 @@ class BaseTTS(CloningMixin, BaseTrainerModel):
         if self.language_manager is not None:
             output_path = os.path.join(trainer.output_path, "language_ids.json")
             self.language_manager.save_ids_to_file(output_path)
-            trainer.config.language_ids_file = output_path
-            if getattr(trainer.config, "model_args", None) is not None:
-                trainer.config.model_args.language_ids_file = output_path
+            trainer.config.model_args.language_ids_file = output_path
             trainer.config.save_json(os.path.join(trainer.output_path, "config.json"))
             logger.info("`language_ids.json` is saved to: %s", output_path)
             logger.info("`language_ids_file` is updated in the config.json.")
@@ -627,18 +615,16 @@ class BaseTTS(CloningMixin, BaseTrainerModel):
 
 
 class BaseTTSE2E(BaseTTS):
-    def _set_model_args(self, config: Coqpit):
-        self.config = config
-        if "Config" in config.__class__.__name__:
+    def _set_model_args(self) -> None:
+        if isinstance(self.config, BaseTTSConfig):
             num_chars = (
                 self.config.model_args.num_chars if self.tokenizer is None else self.tokenizer.characters.num_chars
             )
             self.config.model_args.num_chars = num_chars
             self.config.num_chars = num_chars
-            self.args = config.model_args
+            self.args = self.config.model_args
             self.args.num_chars = num_chars
-        elif "Args" in config.__class__.__name__:
-            self.args = config
-            self.args.num_chars = self.args.num_chars
+        elif isinstance(self.config, ModelArgs):
+            self.args = self.config
         else:
             raise ValueError("config must be either a *Config or *Args")

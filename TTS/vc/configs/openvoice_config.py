@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 
 from coqpit import Coqpit
 
+from TTS.config.shared_configs import ModelArgs
 from TTS.vc.configs.shared_configs import BaseVCConfig
 
 
@@ -34,7 +35,7 @@ class OpenVoiceAudioConfig(Coqpit):
 
 
 @dataclass
-class OpenVoiceArgs(Coqpit):
+class OpenVoiceArgs(ModelArgs):
     """OpenVoice model arguments.
 
     zero_g (bool):

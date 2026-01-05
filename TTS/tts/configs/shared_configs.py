@@ -9,6 +9,7 @@ from TTS.config import (
     BaseTrainingConfig,
     get_from_config_or_model_args,
 )
+from TTS.config.shared_configs import ModelArgs
 
 
 @dataclass
@@ -303,7 +304,7 @@ class BaseTTSConfig(BaseTrainingConfig):
     """
 
     audio: BaseAudioConfig = field(default_factory=BaseAudioConfig)
-    model_args: Coqpit | None = None
+    model_args: ModelArgs = field(default_factory=ModelArgs)
     _supports_cloning: bool = False
     # phoneme settings
     use_phonemes: bool = False
