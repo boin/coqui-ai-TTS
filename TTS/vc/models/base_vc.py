@@ -17,7 +17,7 @@ from TTS.config.shared_configs import ModelArgs
 from TTS.model import BaseTrainerModel
 from TTS.tts.datasets.dataset import TTSDataset
 from TTS.tts.utils.data import get_length_balancer_weights
-from TTS.tts.utils.languages import LanguageManager, get_language_balancer_weights
+from TTS.tts.utils.languages import get_language_balancer_weights
 from TTS.tts.utils.speakers import SpeakerManager, get_speaker_balancer_weights
 from TTS.utils.audio.processor import AudioProcessor
 from TTS.vc.configs.shared_configs import BaseVCConfig
@@ -40,13 +40,11 @@ class BaseVC(BaseTrainerModel):
         config: Coqpit,
         ap: AudioProcessor | None = None,
         speaker_manager: SpeakerManager | None = None,
-        language_manager: LanguageManager | None = None,
     ) -> None:
         super().__init__()
         self.config = config
         self.ap = ap
         self.speaker_manager = speaker_manager
-        self.language_manager = language_manager
         self._set_model_args()
 
     def _set_model_args(self) -> None:
@@ -138,10 +136,6 @@ class BaseVC(BaseTrainerModel):
                 else:
                     speaker_id = self.speaker_manager.name_to_id[speaker_name]
 
-        # get language id
-        if self.language_manager is not None and config.use_language_embedding and language_name is not None:
-            language_id = self.language_manager.name_to_id[language_name]
-
         return {
             "text": text,
             "speaker_id": speaker_id,
@@ -176,7 +170,6 @@ class BaseVC(BaseTrainerModel):
         waveform = batch["waveform"]
         pitch = batch["pitch"]
         energy = batch["energy"]
-        language_ids = batch["language_ids"]
         max_text_length = torch.max(text_lengths.float())
         max_spec_length = torch.max(mel_lengths.float())
 
@@ -225,7 +218,6 @@ class BaseVC(BaseTrainerModel):
             "waveform": waveform,
             "pitch": pitch,
             "energy": energy,
-            "language_ids": language_ids,
             "audio_unique_names": batch["audio_unique_names"],
         }
 
@@ -292,11 +284,7 @@ class BaseVC(BaseTrainerModel):
             speaker_id_mapping = None
             d_vector_mapping = None
 
-        # setup multi-lingual attributes
-        if self.language_manager is not None:
-            language_id_mapping = self.language_manager.name_to_id if self.args.use_language_embedding else None
-        else:
-            language_id_mapping = None
+        language_id_mapping = None
 
         # init dataloader
         dataset = TTSDataset(
@@ -387,12 +375,3 @@ class BaseVC(BaseTrainerModel):
             trainer.config.save_json(os.path.join(trainer.output_path, "config.json"))
             logger.info("`speakers.pth` is saved to %s", output_path)
             logger.info("`speakers_file` is updated in the config.json.")
-
-        if self.language_manager is not None:
-            output_path = os.path.join(trainer.output_path, "language_ids.json")
-            self.language_manager.save_ids_to_file(output_path)
-            trainer.config.language_ids_file = output_path
-            trainer.config.model_args.language_ids_file = output_path
-            trainer.config.save_json(os.path.join(trainer.output_path, "config.json"))
-            logger.info("`language_ids.json` is saved to %s", output_path)
-            logger.info("`language_ids_file` is updated in the config.json.")
