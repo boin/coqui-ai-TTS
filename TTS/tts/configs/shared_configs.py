@@ -7,7 +7,6 @@ from TTS.config import (
     BaseAudioConfig,
     BaseDatasetConfig,
     BaseTrainingConfig,
-    get_from_config_or_model_args,
 )
 from TTS.config.shared_configs import ModelArgs
 
@@ -358,6 +357,6 @@ class BaseTTSConfig(BaseTrainingConfig):
     @property
     def supports_cloning(self) -> bool:
         return self._supports_cloning or (
-            Path(get_from_config_or_model_args(self, "speaker_encoder_model_path", "")).is_file()
-            and Path(get_from_config_or_model_args(self, "speaker_encoder_config_path", "")).is_file()
+            Path(self.model_args.get("speaker_encoder_model_path", "")).is_file()
+            and Path(self.model_args.get("speaker_encoder_config_path", "")).is_file()
         )

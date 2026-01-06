@@ -630,7 +630,7 @@ class Vits(BaseTTS):
             config (Coqpit): Model configuration.
         """
         if self.args.language_ids_file is not None:
-            self.language_manager = LanguageManager(language_ids_file_path=config.language_ids_file)
+            self.language_manager = LanguageManager(language_ids_file_path=self.args.language_ids_file)
 
         if self.args.use_language_embedding and self.language_manager:
             logger.info("Initialization of language-embedding layers.")
