@@ -73,14 +73,6 @@ class LanguageManager(BaseIDManager):
     def set_ids_from_data(self, items: list[dict[str, Any]], parse_key: str) -> Any:
         raise NotImplementedError
 
-    def save_ids_to_file(self, file_path: str | os.PathLike[Any]) -> None:
-        """Save language IDs to a json file.
-
-        Args:
-            file_path (str): Path to the output file.
-        """
-        self._save_json(file_path, self.name_to_id)
-
     @staticmethod
     def init_from_config(config: Coqpit) -> Optional["LanguageManager"]:
         """Initialize the language manager from a Coqpit config.

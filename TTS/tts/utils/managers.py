@@ -50,16 +50,6 @@ class BaseIDManager:
         if id_file_path:
             self.load_ids_from_file(id_file_path)
 
-    @staticmethod
-    def _load_json(json_file_path: str | os.PathLike[Any]) -> dict[str, Any]:
-        with fsspec.open(str(json_file_path), "r") as f:
-            return json.load(f)
-
-    @staticmethod
-    def _save_json(json_file_path: str | os.PathLike[Any], data: dict[str, Any]) -> None:
-        with fsspec.open(str(json_file_path), "w") as f:
-            json.dump(data, f, indent=4)
-
     def set_ids_from_data(self, items: list[dict[str, Any]], parse_key: str) -> None:
         """Set IDs from data samples.
 
