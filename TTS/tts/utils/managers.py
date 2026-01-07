@@ -40,11 +40,12 @@ def save_file(obj: Any, path: str | os.PathLike[Any]):
 
 class BaseIDManager:
     """Base `ID` Manager class. Every new `ID` manager must inherit this.
-    It defines common `ID` manager specific functions.
+
+    Defines common `ID` manager specific functions.
     """
 
     def __init__(self, id_file_path: str | os.PathLike[Any] = ""):
-        self.name_to_id = {}
+        self.name_to_id: dict[str, int] = {}
 
         if id_file_path:
             self.load_ids_from_file(id_file_path)
@@ -83,17 +84,14 @@ class BaseIDManager:
         """
         save_file(self.name_to_id, file_path)
 
-    def get_random_id(self) -> Any:
-        """Get a random embedding.
-
-        Args:
+    def get_random_id(self) -> int | None:
+        """Get a random ID.
 
         Returns:
-            np.ndarray: embedding.
+            Integer ID or None if there are no IDs.
         """
         if self.name_to_id:
             return self.name_to_id[random.choices(list(self.name_to_id.keys()))[0]]
-
         return None
 
     @staticmethod
@@ -338,7 +336,9 @@ class EmbeddingManager(BaseIDManager):
         self.encoder_ap = AudioProcessor(**self.encoder_config.audio)
 
     @torch.inference_mode()
-    def compute_embedding_from_clip(self, wav_file: str | os.PathLike[Any] | list[str | os.PathLike[Any]]) -> list:
+    def compute_embedding_from_clip(
+        self, wav_file: str | os.PathLike[Any] | list[str | os.PathLike[Any]]
+    ) -> list[float]:
         """Compute a embedding from a given audio file.
 
         Args:
