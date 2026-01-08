@@ -6,6 +6,7 @@ from coqpit import Coqpit
 from monotonic_alignment_search import maximum_path
 from torch import nn
 
+from TTS.config.shared_configs import ModelArgs
 from TTS.tts.layers.feed_forward.decoder import Decoder
 from TTS.tts.layers.feed_forward.encoder import Encoder
 from TTS.tts.layers.generic.aligner import AlignmentNetwork
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class ForwardTTSArgs(Coqpit):
+class ForwardTTSArgs(ModelArgs):
     """ForwardTTS Model arguments.
 
     Args:
@@ -353,11 +354,6 @@ class ForwardTTS(BaseTTS):
             - x_mask: :math:`(B, 1, T_{en})`
             - g: :math:`(B, C)`
         """
-        if hasattr(self, "emb_g"):
-            g = g.type(torch.LongTensor).to(x.device)
-            g = self.emb_g(g)  # [B, C, 1]
-        if g is not None:
-            g = g.unsqueeze(-1)
         # [B, T, C]
         x_emb = self.emb(x)
         # encoder pass
@@ -519,19 +515,6 @@ class ForwardTTS(BaseTTS):
         alignment_soft = alignment_soft.squeeze(1).transpose(1, 2)
         return o_alignment_dur, alignment_soft, alignment_logprob, alignment_mas
 
-    def _set_speaker_input(self, aux_input: dict):
-        d_vectors = aux_input.get("d_vectors", None)
-        speaker_ids = aux_input.get("speaker_ids", None)
-
-        if d_vectors is not None and speaker_ids is not None:
-            raise ValueError("[!] Cannot use d-vectors and speaker-ids together.")
-
-        if speaker_ids is not None and not hasattr(self, "emb_g"):
-            raise ValueError("[!] Cannot use speaker-ids without enabling speaker embedding.")
-
-        g = speaker_ids if speaker_ids is not None else d_vectors
-        return g
-
     def forward(
         self,
         x: torch.LongTensor,
@@ -564,7 +547,7 @@ class ForwardTTS(BaseTTS):
             - g: :math:`[B, C]`
             - pitch: :math:`[B, 1, T]`
         """
-        g = self._set_speaker_input(aux_input)
+        g = self._get_speaker_conditioning(aux_input, "emb_g", normalize_d_vector=False, normalize_embedding=False)
         # compute sequence masks
         y_mask = torch.unsqueeze(sequence_mask(y_lengths, None), 1).float()
         x_mask = torch.unsqueeze(sequence_mask(x_lengths, x.shape[1]), 1).float()
@@ -638,7 +621,7 @@ class ForwardTTS(BaseTTS):
             - x_lengths: [B]
             - g: [B, C]
         """
-        g = self._set_speaker_input(aux_input)
+        g = self._get_speaker_conditioning(aux_input, "emb_g", normalize_d_vector=False, normalize_embedding=False)
         x_lengths = torch.tensor(x.shape[1:2]).to(x.device)
         x_mask = torch.unsqueeze(sequence_mask(x_lengths, x.shape[1]), 1).to(x.dtype).float()
         # encoder pass

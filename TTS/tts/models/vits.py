@@ -20,6 +20,7 @@ from trainer.io import load_fsspec
 from trainer.torch import DistributedSampler, DistributedSamplerWrapper
 from trainer.trainer_utils import get_optimizer, get_scheduler
 
+from TTS.config.shared_configs import ModelArgs
 from TTS.tts.configs.shared_configs import CharactersConfig
 from TTS.tts.datasets.dataset import TTSDataset, _parse_sample, get_attribute_balancer_weights
 from TTS.tts.layers.glow_tts.duration_predictor import DurationPredictor
@@ -205,7 +206,7 @@ class VitsDataset(TTSDataset):
 
 
 @dataclass
-class VitsArgs(Coqpit):
+class VitsArgs(ModelArgs):
     """VITS model arguments.
 
     Args:
@@ -629,7 +630,7 @@ class Vits(BaseTTS):
             config (Coqpit): Model configuration.
         """
         if self.args.language_ids_file is not None:
-            self.language_manager = LanguageManager(language_ids_file_path=config.language_ids_file)
+            self.language_manager = LanguageManager(language_ids_file_path=self.args.language_ids_file)
 
         if self.args.use_language_embedding and self.language_manager:
             logger.info("Initialization of language-embedding layers.")
@@ -703,42 +704,6 @@ class Vits(BaseTTS):
         if self.args.freeze_waveform_decoder:
             for param in self.waveform_decoder.parameters():
                 param.requires_grad = False
-
-    @staticmethod
-    def _set_cond_input(aux_input: dict):
-        """Set the speaker conditioning input based on the multi-speaker mode."""
-        sid, g, lid, durations = None, None, None, None
-        if "speaker_ids" in aux_input and aux_input["speaker_ids"] is not None:
-            sid = aux_input["speaker_ids"]
-            if sid.ndim == 0:
-                sid = sid.unsqueeze_(0)
-        if "d_vectors" in aux_input and aux_input["d_vectors"] is not None:
-            g = F.normalize(aux_input["d_vectors"]).unsqueeze(-1)
-            if g.ndim == 2:
-                g = g.unsqueeze_(0)
-
-        if "language_ids" in aux_input and aux_input["language_ids"] is not None:
-            lid = aux_input["language_ids"]
-            if lid.ndim == 0:
-                lid = lid.unsqueeze_(0)
-
-        if "durations" in aux_input and aux_input["durations"] is not None:
-            durations = aux_input["durations"]
-
-        return sid, g, lid, durations
-
-    def _set_speaker_input(self, aux_input: dict):
-        d_vectors = aux_input.get("d_vectors", None)
-        speaker_ids = aux_input.get("speaker_ids", None)
-
-        if d_vectors is not None and speaker_ids is not None:
-            raise ValueError("[!] Cannot use d-vectors and speaker-ids together.")
-
-        if speaker_ids is not None and not hasattr(self, "emb_g"):
-            raise ValueError("[!] Cannot use speaker-ids without enabling speaker embedding.")
-
-        g = speaker_ids if speaker_ids is not None else d_vectors
-        return g
 
     def forward_mas(self, outputs, z_p, m_p, logs_p, x, x_mask, y_mask, g, lang_emb):
         # find the alignment path
@@ -839,13 +804,11 @@ class Vits(BaseTTS):
             - syn_spk_emb: :math:`[B, 1, speaker_encoder.proj_dim]`
         """
         outputs = {}
-        sid, g, lid, _ = self._set_cond_input(aux_input)
-        # speaker embedding
-        if self.args.use_speaker_embedding and sid is not None:
-            g = self.emb_g(sid).unsqueeze(-1)  # [b, h, 1]
+        g = self._get_speaker_conditioning(aux_input, "emb_g", normalize_embedding=False)
 
         # language embedding
         lang_emb = None
+        lid = aux_input.get("language_ids")
         if self.args.use_language_embedding and lid is not None:
             lang_emb = self.emb_l(lid).unsqueeze(-1)
 
@@ -943,20 +906,18 @@ class Vits(BaseTTS):
             - m_p: :math:`[B, C, T_dec]`
             - logs_p: :math:`[B, C, T_dec]`
         """
-        sid, g, lid, durations = self._set_cond_input(aux_input)
+        g = self._get_speaker_conditioning(aux_input, "emb_g", normalize_embedding=False)
         x_lengths = self._set_x_lengths(x, aux_input)
-
-        # speaker embedding
-        if self.args.use_speaker_embedding and sid is not None:
-            g = self.emb_g(sid).unsqueeze(-1)
 
         # language embedding
         lang_emb = None
+        lid = aux_input.get("language_ids")
         if self.args.use_language_embedding and lid is not None:
             lang_emb = self.emb_l(lid).unsqueeze(-1)
 
         x, m_p, logs_p, x_mask = self.text_encoder(x, x_lengths, lang_emb=lang_emb)
 
+        durations = aux_input.get("durations")
         if durations is None:
             if self.args.use_sdp:
                 logw = self.duration_predictor(
@@ -1344,61 +1305,58 @@ class Vits(BaseTTS):
         num_gpus: int,
         rank: int | None = None,
     ) -> "DataLoader":
-        if is_eval and not config.run_eval:
-            loader = None
-        else:
-            # init dataloader
-            dataset = VitsDataset(
-                model_args=self.args,
-                samples=samples,
-                batch_group_size=0 if is_eval else config.batch_group_size * config.batch_size,
-                min_text_len=config.min_text_len,
-                max_text_len=config.max_text_len,
-                min_audio_len=config.min_audio_len,
-                max_audio_len=config.max_audio_len,
-                phoneme_cache_path=config.phoneme_cache_path,
-                precompute_num_workers=config.precompute_num_workers,
-                tokenizer=self.tokenizer,
-                start_by_longest=config.start_by_longest,
+        # init dataloader
+        dataset = VitsDataset(
+            model_args=self.args,
+            samples=samples,
+            batch_group_size=0 if is_eval else config.batch_group_size * config.batch_size,
+            min_text_len=config.min_text_len,
+            max_text_len=config.max_text_len,
+            min_audio_len=config.min_audio_len,
+            max_audio_len=config.max_audio_len,
+            phoneme_cache_path=config.phoneme_cache_path,
+            precompute_num_workers=config.precompute_num_workers,
+            tokenizer=self.tokenizer,
+            start_by_longest=config.start_by_longest,
+        )
+
+        # wait all the DDP process to be ready
+        if num_gpus > 1:
+            dist.barrier()
+
+        # sort input sequences from short to long
+        dataset.preprocess_samples()
+
+        # get samplers
+        sampler = self.get_sampler(config, dataset, num_gpus)
+        if sampler is None:
+            loader = DataLoader(
+                dataset,
+                batch_size=config.eval_batch_size if is_eval else config.batch_size,
+                shuffle=False,  # shuffle is done in the dataset.
+                collate_fn=dataset.collate_fn,
+                drop_last=False,  # setting this False might cause issues in AMP training.
+                num_workers=config.num_eval_loader_workers if is_eval else config.num_loader_workers,
+                pin_memory=False,
             )
-
-            # wait all the DDP process to be ready
+        else:
             if num_gpus > 1:
-                dist.barrier()
-
-            # sort input sequences from short to long
-            dataset.preprocess_samples()
-
-            # get samplers
-            sampler = self.get_sampler(config, dataset, num_gpus)
-            if sampler is None:
                 loader = DataLoader(
                     dataset,
+                    sampler=sampler,
                     batch_size=config.eval_batch_size if is_eval else config.batch_size,
-                    shuffle=False,  # shuffle is done in the dataset.
                     collate_fn=dataset.collate_fn,
-                    drop_last=False,  # setting this False might cause issues in AMP training.
                     num_workers=config.num_eval_loader_workers if is_eval else config.num_loader_workers,
                     pin_memory=False,
                 )
             else:
-                if num_gpus > 1:
-                    loader = DataLoader(
-                        dataset,
-                        sampler=sampler,
-                        batch_size=config.eval_batch_size if is_eval else config.batch_size,
-                        collate_fn=dataset.collate_fn,
-                        num_workers=config.num_eval_loader_workers if is_eval else config.num_loader_workers,
-                        pin_memory=False,
-                    )
-                else:
-                    loader = DataLoader(
-                        dataset,
-                        batch_sampler=sampler,
-                        collate_fn=dataset.collate_fn,
-                        num_workers=config.num_eval_loader_workers if is_eval else config.num_loader_workers,
-                        pin_memory=False,
-                    )
+                loader = DataLoader(
+                    dataset,
+                    batch_sampler=sampler,
+                    collate_fn=dataset.collate_fn,
+                    num_workers=config.num_eval_loader_workers if is_eval else config.num_loader_workers,
+                    pin_memory=False,
+                )
         return loader
 
     def get_optimizer(self) -> list:

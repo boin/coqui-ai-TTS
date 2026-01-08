@@ -11,6 +11,7 @@ import torchaudio
 from coqpit import Coqpit
 from tqdm import tqdm
 
+from TTS.config.shared_configs import ModelArgs
 from TTS.tts.configs.shared_configs import BaseTTSConfig
 from TTS.tts.layers.tortoise.arch_utils import TorchMelSpectrogram
 from TTS.tts.layers.tortoise.audio_utils import (
@@ -218,7 +219,7 @@ class TortoiseAudioConfig(Coqpit):
 
 
 @dataclass
-class TortoiseArgs(Coqpit):
+class TortoiseArgs(ModelArgs):
     """A dataclass to represent Tortoise model arguments that define the model structure.
 
     Args:

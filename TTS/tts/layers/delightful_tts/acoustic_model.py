@@ -194,19 +194,6 @@ class AcousticModel(torch.nn.Module):
 
         return sid, g, lid, durations
 
-    def _set_speaker_input(self, aux_input: dict):
-        d_vectors = aux_input.get("d_vectors", None)
-        speaker_ids = aux_input.get("speaker_ids", None)
-
-        if d_vectors is not None and speaker_ids is not None:
-            raise ValueError("[!] Cannot use d-vectors and speaker-ids together.")
-
-        if speaker_ids is not None and not hasattr(self, "emb_g"):
-            raise ValueError("[!] Cannot use speaker-ids without enabling speaker embedding.")
-
-        g = speaker_ids if speaker_ids is not None else d_vectors
-        return g
-
     # def set_embedding_dims(self):
     #     if self.embedded_speaker_dim > 0:
     #         self.embedding_dims = self.embedded_speaker_dim
