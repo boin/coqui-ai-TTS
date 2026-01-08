@@ -469,26 +469,44 @@ class ModelManager:
             config_path (str): local config.json path.
         """
         config = load_config(config_path)
+        has_changes = False
 
-        def _set_path(field_name: str, new_path: Path) -> None:
+        def _set_path(field_name: str, new_path: Path) -> bool:
+            """Set path in config if it differs from current value.
+
+            Returns:
+                bool: True if the value was changed, False otherwise.
+            """
             keys = field_name.split(".")
             sub_conf = config
             for key in keys[:-1]:
                 if key not in sub_conf:
-                    return
+                    return False
                 sub_conf = sub_conf[key]
             if keys[-1] not in sub_conf:
-                return
-            sub_conf[keys[-1]] = [new_path] if isinstance(sub_conf[keys[-1]], list) else new_path
+                return False
+
+            current_value = sub_conf[keys[-1]]
+
+            if isinstance(current_value, list):
+                current_value = current_value[0] if current_value else ""
+                new_value = [new_path]
+            else:
+                new_value = new_path
+
+            if current_value and Path(current_value) == new_path:
+                return False
+            sub_conf[keys[-1]] = new_value
+            return True
 
         def _update_path(field_name: str, new_path: Path) -> bool:
             if not new_path.is_file():
                 return False
 
-            _set_path(field_name, new_path)
+            changed = _set_path(field_name, new_path)
             if not field_name.startswith("audio"):
-                _set_path(f"model_args.{field_name}", new_path)
-            return True
+                changed |= _set_path(f"model_args.{field_name}", new_path)
+            return changed
 
         default_names = {
             "audio.stats_path": ["scale_stats.npy"],
@@ -513,13 +531,17 @@ class ModelManager:
                 model_args_name = Path(model_args_name).name
 
             if _update_path(field_name, output_path / name):
+                has_changes = True
                 continue
             elif _update_path(field_name, output_path / model_args_name):
+                has_changes = True
                 continue
             for default in defaults:
-                _update_path(field_name, output_path / default)
+                if _update_path(field_name, output_path / default):
+                    has_changes = True
 
-        config.save_json(config_path)
+        if has_changes:
+            config.save_json(config_path)
 
     @staticmethod
     def _download_zip_file(file_url: str, output_folder: Path, progress_bar: bool) -> None:
