@@ -26,7 +26,7 @@ from TTS.tts.layers.tortoise.diffusion import SpacedDiffusion, get_named_beta_sc
 from TTS.tts.layers.tortoise.diffusion_decoder import DiffusionTts
 from TTS.tts.layers.tortoise.random_latent_generator import RandomLatentConverter
 from TTS.tts.layers.tortoise.tokenizer import VoiceBpeTokenizer
-from TTS.tts.layers.tortoise.vocoder import VocConf, VocType
+from TTS.tts.layers.tortoise.vocoder import UnivNetGenerator
 from TTS.tts.layers.tortoise.wav2vec_alignment import Wav2VecAlignment
 from TTS.tts.models.base_tts import BaseTTS
 from TTS.utils.generic_utils import (
@@ -231,7 +231,6 @@ class TortoiseArgs(ModelArgs):
         clvp_checkpoint (str, optional): The checkpoint for the ConditionalLatentVariablePerseq model. Defaults to None.
         diff_checkpoint (str, optional): The checkpoint for the DiffTTS model. Defaults to None.
         num_chars (int, optional): The maximum number of characters to generate. Defaults to 255.
-        vocoder (VocType, optional): The vocoder to use for synthesis. Defaults to VocConf.Univnet.
 
         For UnifiedVoice model:
         ar_max_mel_tokens (int, optional): The maximum mel tokens for the autoregressive model. Defaults to 604.
@@ -282,7 +281,6 @@ class TortoiseArgs(ModelArgs):
     clvp_checkpoint: str = None
     diff_checkpoint: str = None
     num_chars: int = 255
-    vocoder: VocType = VocConf.Univnet
 
     # UnifiedVoice params
     ar_max_mel_tokens: int = 604
@@ -399,7 +397,7 @@ class Tortoise(BaseTTS):
             use_xformers=self.args.clvp_use_xformers,
         )
 
-        self.vocoder = self.args.vocoder.value.constructor()
+        self.vocoder = UnivNetGenerator()
 
         # Random latent generators (RLGs) are loaded lazily.
         self.rlg_auto = None
@@ -885,13 +883,11 @@ class Tortoise(BaseTTS):
 
         if os.path.exists(vocoder_checkpoint_path):
             self.vocoder.load_state_dict(
-                config.model_args.vocoder.value.optionally_index(
-                    torch.load(
-                        vocoder_checkpoint_path,
-                        map_location=torch.device("cpu"),
-                        weights_only=is_pytorch_at_least_2_4(),
-                    )
-                )
+                torch.load(
+                    vocoder_checkpoint_path,
+                    map_location=torch.device("cpu"),
+                    weights_only=is_pytorch_at_least_2_4(),
+                )["model_g"]
             )
 
         if eval:
