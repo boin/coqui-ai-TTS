@@ -178,7 +178,6 @@ def compute_embeddings(
 
         save_file(speaker_mapping, mapping_file_path)
         print("Speaker embeddings saved at:", mapping_file_path)
-    sys.exit(0)
 
 
 def main(arg_list: list[str] | None = None):
@@ -200,6 +199,7 @@ def main(arg_list: list[str] | None = None):
         disable_cuda=args.disable_cuda,
         no_eval=args.no_eval,
     )
+    sys.exit(0)
 
 
 if __name__ == "__main__":
