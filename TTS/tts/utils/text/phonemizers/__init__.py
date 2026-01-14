@@ -1,3 +1,5 @@
+from typing import Any
+
 from TTS.tts.utils.text.phonemizers.base import BasePhonemizer
 from TTS.tts.utils.text.phonemizers.belarusian_phonemizer import BEL_Phonemizer
 from TTS.tts.utils.text.phonemizers.espeak_wrapper import ESpeak
@@ -62,7 +64,7 @@ if ZH_CN_Phonemizer is not None:
     DEF_LANG_TO_PHONEMIZER["zh-cn"] = ZH_CN_Phonemizer.name()
 
 
-def get_phonemizer_by_name(name: str, **kwargs) -> BasePhonemizer:
+def get_phonemizer_by_name(name: str, **kwargs: Any) -> BasePhonemizer:
     """Initiate a phonemizer by name
 
     Args:
