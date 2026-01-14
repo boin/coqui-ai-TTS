@@ -334,7 +334,7 @@ class BaseTTSConfig(BaseTrainingConfig):
     shuffle: bool = False
     drop_last: bool = False
     # dataset
-    datasets: list[BaseDatasetConfig] = field(default_factory=lambda: [BaseDatasetConfig()])
+    datasets: list[BaseDatasetConfig] = field(default_factory=list)
     # optimizer
     optimizer: str = "radam"
     optimizer_params: dict = None

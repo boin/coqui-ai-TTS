@@ -14,12 +14,6 @@ from TTS.tts.utils.helpers import sequence_mask
 
 
 @pytest.fixture(scope="session")
-def device():
-    """Get torch device for testing."""
-    return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-
-@pytest.fixture(scope="session")
 def parameter_path() -> Path:
     """Create and return path to test parameters."""
     path = Path(get_tests_output_path()) / "lj_parameters.pt"
@@ -63,12 +57,6 @@ def get_overflow_model(config, parameter_path, device):
         return model.to(device)
 
     return _get_model
-
-
-@pytest.fixture(autouse=True)
-def set_random_seed():
-    """Set random seed for reproducibility."""
-    torch.manual_seed(1)
 
 
 # Tests for Overflow model
