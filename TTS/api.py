@@ -76,7 +76,7 @@ class TTS(nn.Module):
             gpu (bool, optional): Enable/disable GPU. Defaults to False. DEPRECATED, use TTS(...).to("cuda")
         """
         super().__init__()
-        self.manager = ModelManager(models_file=self.get_models_file_path(), progress_bar=progress_bar)
+        self.manager = ModelManager(progress_bar=progress_bar)
         self.config = load_config(config_path) if config_path else None
         self.synthesizer: Synthesizer | None = None
         self.voice_converter: Synthesizer | None = None
@@ -153,12 +153,8 @@ class TTS(nn.Module):
         return self.synthesizer.tts_model.language_manager.language_names
 
     @staticmethod
-    def get_models_file_path() -> Path:
-        return Path(__file__).parent / ".models.json"
-
-    @staticmethod
     def list_models() -> list[str]:
-        return ModelManager(models_file=TTS.get_models_file_path(), progress_bar=False).list_models()
+        return ModelManager(progress_bar=False).list_models()
 
     def download_model_by_name(
         self, model_name: str, vocoder_name: str | None = None

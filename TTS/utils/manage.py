@@ -1,9 +1,11 @@
+import json
 import logging
 import os
 import re
 import tarfile
 import zipfile
 from contextlib import nullcontext
+from importlib import resources
 from pathlib import Path
 from shutil import copyfile, rmtree
 from typing import Any, TypedDict
@@ -13,7 +15,7 @@ from tqdm import tqdm
 from trainer.io import get_user_data_dir
 from typing_extensions import Required
 
-from TTS.config import load_config, read_json_with_comments
+from TTS.config import load_config
 from TTS.vc.configs.knnvc_config import KNNVCConfig
 
 logger = logging.getLogger(__name__)
@@ -75,20 +77,9 @@ class ModelManager:
         else:
             self.output_prefix = Path(output_prefix) / "tts"
         self.models_dict = {}
-        if models_file is not None:
-            self.read_models_file(models_file)
-        else:
-            # try the default location
-            path = Path(__file__).parent / "../.models.json"
-            self.read_models_file(path)
-
-    def read_models_file(self, file_path: str | os.PathLike[Any]) -> None:
-        """Read .models.json as a dict
-
-        Args:
-            file_path (str): path to .models.json.
-        """
-        self.models_dict = read_json_with_comments(file_path)
+        f = resources.open_text("TTS", ".models.json") if models_file is None else open(models_file, encoding="utf-8")
+        with f:
+            self.models_dict = json.load(f)
 
     def _list_models(self, model_type: str, model_count: int = 0) -> list[str]:
         logger.info("")

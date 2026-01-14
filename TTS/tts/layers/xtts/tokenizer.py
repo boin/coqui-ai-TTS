@@ -1,5 +1,4 @@
 import logging
-import os
 import re
 import textwrap
 from functools import cached_property
@@ -595,9 +594,6 @@ def japanese_cleaners(text, katsu):
     text = katsu.romaji(text)
     text = lowercase(text)
     return text
-
-
-DEFAULT_VOCAB_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/tokenizer.json")
 
 
 class VoiceBpeTokenizer:

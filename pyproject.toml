@@ -100,6 +100,7 @@ codec = [
 notebooks = [
     "bokeh>=3.0.3",
     "pandas>=1.4,<3.0",
+    "tqdm[notebook]>=4.64.1",
     "umap-learn>=0.5.1",
 ]
 # For running the TTS server
@@ -139,8 +140,8 @@ all = [
 dev = [
     "coverage[toml]>=7",
     "pre-commit>=4",
-    "pytest>=8",
-    "ruff==0.9.1",
+    "pytest>=9",
+    "ruff==0.14.11",
 ]
 # Dependencies for building the documentation
 docs = [
@@ -182,7 +183,6 @@ packages = ["TTS"]
 
 [tool.ruff]
 line-length = 120
-extend-exclude = ["*.ipynb"]
 lint.extend-select = [
     "B033", # duplicate-value
     "C416", # unnecessary-comprehension
@@ -212,11 +212,11 @@ lint.ignore = [
     "E741", # ambiguous variable name
     "F821", # TODO: enable
     "F841", # TODO: enable
+    "PLC0415", # TODO: enable
     "PLW0602", # TODO: enable
     "PLW2901", # TODO: enable
     "PLW0127", # TODO: enable
     "PLW0603", # TODO: enable
-    "UP038",  # deprecated rule
 ]
 
 [tool.ruff.lint.pylint]
