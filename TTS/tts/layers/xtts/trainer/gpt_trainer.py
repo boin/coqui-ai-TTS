@@ -10,14 +10,14 @@ from trainer.io import load_fsspec
 from trainer.torch import DistributedSampler
 from trainer.trainer_utils import get_optimizer, get_scheduler
 
-from TTS.tts.configs.xtts_config import XttsConfig
+from TTS.tts.configs.xtts_config import XttsArgs, XttsConfig
 from TTS.tts.datasets.dataset import TTSDataset
 from TTS.tts.layers.tortoise.arch_utils import TorchMelSpectrogram
 from TTS.tts.layers.xtts.dvae import DiscreteVAE
 from TTS.tts.layers.xtts.tokenizer import VoiceBpeTokenizer
 from TTS.tts.layers.xtts.trainer.dataset import XTTSDataset
 from TTS.tts.models.base_tts import BaseTTS
-from TTS.tts.models.xtts import Xtts, XttsArgs
+from TTS.tts.models.xtts import Xtts
 from TTS.utils.generic_utils import is_pytorch_at_least_2_4
 
 logger = logging.getLogger(__name__)

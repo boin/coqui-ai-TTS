@@ -32,8 +32,7 @@ if is_torch_greater_or_equal("2.4"):
     from packaging import version
 
     from TTS.config.shared_configs import BaseDatasetConfig
-    from TTS.tts.configs.xtts_config import XttsConfig
-    from TTS.tts.models.xtts import XttsArgs, XttsAudioConfig
+    from TTS.tts.configs.xtts_config import XttsArgs, XttsAudioConfig, XttsConfig
     from TTS.utils.radam import RAdam
 
     torch.serialization.add_safe_globals([dict, defaultdict, RAdam])

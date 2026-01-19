@@ -1,7 +1,6 @@
 import logging
 import os
 import warnings
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -32,12 +31,6 @@ from TTS.utils.generic_utils import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class BarkAudioConfig(Coqpit):
-    sample_rate: int = 24000
-    output_sample_rate: int = 24000
 
 
 class Bark(BaseTTS):
