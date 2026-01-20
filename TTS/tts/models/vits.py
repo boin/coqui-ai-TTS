@@ -1180,7 +1180,7 @@ class Vits(BaseTTS):
             self.eval()
             assert not self.training
 
-    def load_fairseq_checkpoint(self, config, checkpoint_dir, eval=False, strict=True):  # pylint: disable=unused-argument, redefined-builtin
+    def load_fairseq_checkpoint(self, config, checkpoint_path: Path, eval=False, strict=True):  # pylint: disable=unused-argument, redefined-builtin
         """Load VITS checkpoints released by fairseq here: https://github.com/facebookresearch/fairseq/tree/main/examples/mms
         Performs some changes for compatibility.
 
@@ -1195,11 +1195,8 @@ class Vits(BaseTTS):
 
         self.disc = None
         # set paths
-        checkpoint_dir = Path(checkpoint_dir)
+        checkpoint_dir = checkpoint_path.parent
         config_file = checkpoint_dir / "config.json"
-        checkpoint_file = checkpoint_dir / "model.pth"
-        if not checkpoint_file.is_file():
-            checkpoint_file = checkpoint_dir / "G_100000.pth"
         vocab_file = checkpoint_dir / "vocab.txt"
         # set config params
         with open(config_file, encoding="utf-8") as f:
@@ -1219,7 +1216,7 @@ class Vits(BaseTTS):
             use_eos_bos=False,
         )
         # load fairseq checkpoint
-        new_chk = rehash_fairseq_vits_checkpoint(checkpoint_file)
+        new_chk = rehash_fairseq_vits_checkpoint(checkpoint_path)
         self.load_state_dict(new_chk, strict=strict)
         if eval:
             self.eval()

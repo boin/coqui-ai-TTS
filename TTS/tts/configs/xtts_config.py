@@ -103,9 +103,6 @@ class XttsConfig(BaseTTSConfig):
         audio (XttsAudioConfig):
             Audio processing configuration. Defaults to `XttsAudioConfig()`.
 
-        model_dir (str):
-            Path to the folder that has all the XTTS models. Defaults to None.
-
         temperature (float):
             Temperature for the autoregressive model inference. Larger values makes predictions more creative sacrificing stability. Defaults to `0.2`.
 
@@ -155,7 +152,6 @@ class XttsConfig(BaseTTSConfig):
     # model specific params
     model_args: XttsArgs = field(default_factory=XttsArgs)
     audio: XttsAudioConfig = field(default_factory=XttsAudioConfig)
-    model_dir: str = None
     languages: list[str] = field(
         default_factory=lambda: [
             "en",

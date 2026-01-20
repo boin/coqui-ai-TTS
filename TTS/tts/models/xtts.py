@@ -117,7 +117,6 @@ class Xtts(BaseTTS):
         self.config = config
         self.gpt_checkpoint = self.args.gpt_checkpoint
         self.decoder_checkpoint = self.args.decoder_checkpoint  # TODO: check if this is even needed
-        self.models_dir = config.model_dir
         self.gpt_batch_size = self.args.gpt_batch_size
 
         self.tokenizer = VoiceBpeTokenizer()
@@ -608,7 +607,7 @@ class Xtts(BaseTTS):
         self.gpt.init_gpt_for_inference()
         super().eval()
 
-    def get_compatible_checkpoint_state_dict(self, model_path):
+    def get_compatible_checkpoint_state_dict(self, model_path: Path):
         checkpoint = load_fsspec(model_path, map_location=torch.device("cpu"))["model"]
         # remove xtts gpt trainer extra keys
         ignore_keys = ["torch_mel_spectrogram_style_encoder", "torch_mel_spectrogram_dvae", "dvae"]
@@ -629,13 +628,13 @@ class Xtts(BaseTTS):
     def load_checkpoint(
         self,
         config: "XttsConfig",
-        checkpoint_dir: str | None = None,
-        checkpoint_path: str | None = None,
-        vocab_path: str | None = None,
+        checkpoint_dir: str | os.PathLike[Any] | None = None,
+        checkpoint_path: str | os.PathLike[Any] | None = None,
+        vocab_path: str | os.PathLike[Any] | None = None,
         eval: bool = True,
         strict: bool = True,
         use_deepspeed: bool = False,
-        speaker_file_path: str | None = None,
+        speaker_file_path: str | os.PathLike[Any] | None = None,
     ):
         """
         Loads a checkpoint from disk and initializes the model's state and tokenizer.
@@ -651,25 +650,31 @@ class Xtts(BaseTTS):
         Returns:
             None
         """
-        if checkpoint_dir is not None and Path(checkpoint_dir).is_file():
+        if checkpoint_dir is None and checkpoint_path is None:
+            msg = "You need to specify at least one of `checkpoint_dir`, `checkpoint_path`"
+            raise ValueError(msg)
+        if checkpoint_dir is None:
+            checkpoint_dir = Path(checkpoint_path).parent
+        checkpoint_dir = Path(checkpoint_dir)
+        if checkpoint_dir.is_file():
             msg = f"You passed a file to `checkpoint_dir=`. Use `checkpoint_path={checkpoint_dir}` instead."
             raise ValueError(msg)
-        model_path = checkpoint_path or os.path.join(checkpoint_dir, "model.pth")
+        model_path = Path(checkpoint_path) if checkpoint_path is not None else checkpoint_dir / "model.pth"
         if vocab_path is None:
-            if checkpoint_dir is not None and (Path(checkpoint_dir) / "vocab.json").is_file():
-                vocab_path = str(Path(checkpoint_dir) / "vocab.json")
+            if (checkpoint_dir / "vocab.json").is_file():
+                vocab_path = checkpoint_dir / "vocab.json"
             else:
-                vocab_path = config.model_args.tokenizer_file
+                vocab_path = Path(config.model_args.tokenizer_file)
 
-        if speaker_file_path is None and checkpoint_dir is not None:
-            speaker_file_path = os.path.join(checkpoint_dir, "speakers_xtts.pth")
+        if speaker_file_path is None:
+            speaker_file_path = checkpoint_dir / "speakers_xtts.pth"
 
         self.language_manager = LanguageManager(config)
         self.speaker_manager = None
         if speaker_file_path is not None and os.path.exists(speaker_file_path):
             self.speaker_manager = SpeakerManager(speaker_file_path)
 
-        if os.path.exists(vocab_path):
+        if Path(vocab_path).is_file():
             self.tokenizer = VoiceBpeTokenizer(vocab_file=vocab_path)
         else:
             msg = (
