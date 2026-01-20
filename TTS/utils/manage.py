@@ -27,7 +27,6 @@ class ModelItem(TypedDict, total=False):
     license: str
     author: str
     contact: str
-    commit: str | None
     tos_required: bool
     default_vocoder: str | None
     github_rls_url: str | list[str]
