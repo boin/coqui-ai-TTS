@@ -144,6 +144,9 @@ all = [
 ]
 
 [tool.uv]
+constraint-dependencies = [
+    "torch<2.10",
+]
 required-environments = [
     "sys_platform == 'linux' and platform_machine == 'x86_64'"
 ]
