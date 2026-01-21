@@ -1,5 +1,7 @@
+import contextlib
 import logging
 import os
+import pickle
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +12,9 @@ import torchaudio
 from coqpit import Coqpit
 from trainer.io import load_fsspec
 
+from TTS.config.shared_configs import BaseDatasetConfig
 from TTS.tts.configs.shared_configs import BaseTTSConfig
+from TTS.tts.configs.xtts_config import XttsArgs, XttsAudioConfig, XttsConfig
 from TTS.tts.layers.xtts.gpt import GPT
 from TTS.tts.layers.xtts.hifigan_decoder import HifiDecoder
 from TTS.tts.layers.xtts.stream_generator import init_stream_support
@@ -96,6 +100,32 @@ def load_audio(audiopath, sampling_rate):
     # clip audio invalid values
     audio.clip_(-1, 1)
     return audio
+
+
+@contextlib.contextmanager
+def _legacy_safe_globals():
+    """Temporarily allow legacy pickles that reference old module locations.
+
+    TTS.tts.models.xtts.XttsArgs/XttsAudioConfig moved to
+    TTS.tts.configs.xtts_config to avoid circular imports, but are included in
+    the original XTTS checkpoints under that path.
+    """
+    ac = XttsAudioConfig
+    args = XttsArgs
+    restore_module = ac.__module__
+
+    try:
+        # Rebind class identity to legacy location
+        ac.__module__ = __name__
+        args.__module__ = __name__
+
+        # Allow necessary classes for this scope
+        with torch.serialization.safe_globals([ac, args, BaseDatasetConfig, XttsConfig]):
+            yield
+    finally:
+        # Restore canonical identity
+        ac.__module__ = restore_module
+        args.__module__ = restore_module
 
 
 class Xtts(BaseTTS):
@@ -607,8 +637,23 @@ class Xtts(BaseTTS):
         self.gpt.init_gpt_for_inference()
         super().eval()
 
-    def get_compatible_checkpoint_state_dict(self, model_path: Path):
-        checkpoint = load_fsspec(model_path, map_location=torch.device("cpu"))["model"]
+    def _load_checkpoint(self, model_path: Path) -> dict:
+        try:
+            checkpoint = load_fsspec(model_path, map_location=torch.device("cpu"))
+        except pickle.UnpicklingError:
+            # original checkpoint containing XttsConfig instead of dict
+            with _legacy_safe_globals():
+                checkpoint = torch.load(
+                    model_path, map_location=torch.device("cpu"), weights_only=is_pytorch_at_least_2_4()
+                )
+            if isinstance(checkpoint["config"], XttsConfig):
+                checkpoint["config"].speakers = []
+                checkpoint["config"] = checkpoint["config"].to_dict()
+                torch.save(checkpoint, model_path)
+        return checkpoint["model"]
+
+    def get_compatible_checkpoint_state_dict(self, model_path: Path) -> dict:
+        checkpoint = self._load_checkpoint(model_path)
         # remove xtts gpt trainer extra keys
         ignore_keys = ["torch_mel_spectrogram_style_encoder", "torch_mel_spectrogram_dvae", "dvae"]
         for key in list(checkpoint.keys()):
