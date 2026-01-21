@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from torch import nn
+from trainer.io import get_user_data_dir
 
 from TTS.config import load_config
 from TTS.utils.manage import ModelManager
@@ -81,6 +82,7 @@ class TTS(nn.Module):
         self.synthesizer: Synthesizer | None = None
         self.voice_converter: Synthesizer | None = None
         self.model_name = ""
+        self.voice_dir = None
 
         self.vocoder_path = vocoder_path
         self.vocoder_config_path = vocoder_config_path
@@ -93,6 +95,7 @@ class TTS(nn.Module):
             warnings.warn("`gpu` will be deprecated. Please use `tts.to(device)` instead.")
 
         if model_name is not None and len(model_name) > 0:
+            self.voice_dir = get_user_data_dir("tts") / model_name / "voices"
             if "tts_models" in model_name:
                 self.load_tts_model_by_name(model_name, vocoder_name, gpu=gpu)
             elif "voice_conversion_models" in model_name:
@@ -198,6 +201,7 @@ class TTS(nn.Module):
             vc_config=config_path,
             vocoder_checkpoint=vocoder_path,
             vocoder_config=vocoder_config_path,
+            voice_dir=self.voice_dir,
             use_cuda=gpu,
         )
 
@@ -227,6 +231,7 @@ class TTS(nn.Module):
             vocoder_config=vocoder_config_path,
             encoder_checkpoint=self.encoder_path,
             encoder_config=self.encoder_config_path,
+            voice_dir=self.voice_dir,
             use_cuda=gpu,
         )
 
@@ -252,6 +257,7 @@ class TTS(nn.Module):
             encoder_config=self.encoder_config_path,
             use_cuda=gpu,
         )
+        self.voice_dir = self.synthesizer.voice_dir
 
     def _check_arguments(
         self,
