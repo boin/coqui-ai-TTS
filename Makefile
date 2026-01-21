@@ -37,12 +37,17 @@ test_text: ## run text tests.
 	coverage run -m pytest -x -v --durations=0 tests/text_tests
 
 test_notebook: ## run Jupyter notebook tests
-	NB_OUTPUT_DIR=/tmp/coqui uv run --with nbval --extra cpu --extra notebooks pytest --nbval-lax notebooks/ \
+	NB_OUTPUT_DIR=/tmp/coqui uv run --with nbval \
+		--extra cpu --extra codec --extra languages --extra notebooks \
+		pytest --nbval-lax notebooks/ \
 		--ignore-glob "notebooks/Tutorial*" \
 		--ignore notebooks/dataset_analysis/CheckDatasetSNR.ipynb
 
 test_failed:  ## only run tests failed the last time.
 	coverage run -m pytest -x -v --last-failed tests
+
+jupyter: ## launch Jupyter lab
+	uv run --all-extras --no-extra cuda --no-extra codec-cuda --with jupyter jupyter lab
 
 style:	## update code style.
 	uv run --only-dev ruff format ${target_dirs}
