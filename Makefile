@@ -22,7 +22,7 @@ test_aux:	## run aux tests.
 	coverage run -m pytest -x -v --durations=0 tests/aux_tests
 
 test_zoo:	## run zoo tests.
-	coverage run -m pytest -x -v --durations=0 tests/zoo_tests/test_models.py
+	coverage run -m pytest -v --durations=0 tests/zoo_tests/test_models.py
 
 test_zoo_big:	## run tests for models that are too big for CI.
 	coverage run -m pytest -x -v --durations=0 tests/zoo_tests/test_big_models.py
@@ -67,4 +67,5 @@ install_dev:	## install 🐸 TTS for development.
 	uv run pre-commit install
 
 docs:	## build the docs
-	uv run --group docs $(MAKE) -C docs clean && uv run --group docs $(MAKE) -C docs html
+	uv run --extra cpu --extra codec --group docs $(MAKE) -C docs clean
+	uv run --extra cpu --extra codec --group docs $(MAKE) -C docs html

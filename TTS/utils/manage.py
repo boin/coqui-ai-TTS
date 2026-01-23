@@ -46,7 +46,7 @@ LICENSE_URLS = {
     "apache 2.0": "https://choosealicense.com/licenses/apache-2.0/",
     "apache2": "https://choosealicense.com/licenses/apache-2.0/",
     "cc-by-sa 4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
-    "cpml": "https://coqui.ai/cpml.txt",
+    "cpml": "https://tts-hub.github.io/cpml",
 }
 
 
@@ -317,10 +317,10 @@ class ModelManager:
     def ask_tos(model_full_path: Path) -> bool:
         """Ask the user to agree to the terms of service"""
         tos_path = model_full_path / "tos_agreed.txt"
-        print(" > You must confirm the following:")
-        print(' | > "I have purchased a commercial license from Coqui: licensing@coqui.ai"')
-        print(' | > "Otherwise, I agree to the terms of the non-commercial CPML: https://coqui.ai/cpml" - [y/n]')
-        answer = input(" | | > ")
+        print("You must confirm the following:")
+        print('  "I have purchased a commercial license from Coqui: licensing@coqui.ai"')
+        print('  "Otherwise, I agree to the terms of the non-commercial CPML: https://tts-hub.github.io/cpml" - [y/n]')
+        answer = input("   > ")
         if answer.lower() == "y":
             with open(tos_path, "w", encoding="utf-8") as f:
                 f.write("I have read, understood and agreed to the Terms and Conditions.")
