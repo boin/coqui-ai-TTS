@@ -1,4 +1,5 @@
 import torch
+from coqpit import Coqpit
 from monotonic_alignment_search import maximum_path
 from torch import nn
 
@@ -50,9 +51,11 @@ class AlignTTS(BaseTTS):
 
     # pylint: disable=dangerous-default-value
 
+    config: AlignTTSConfig
+
     def __init__(
         self,
-        config: AlignTTSConfig,
+        config: Coqpit,
         ap: "AudioProcessor" = None,
         tokenizer: "TTSTokenizer" = None,
         speaker_manager: SpeakerManager = None,

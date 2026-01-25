@@ -15,7 +15,7 @@ from torch.utils.data.sampler import WeightedRandomSampler
 from trainer.torch import DistributedSampler, DistributedSamplerWrapper
 from trainer.trainer_utils import get_optimizer, get_scheduler
 
-from TTS.tts.configs.delightful_tts_config import DelightfulTTSConfig
+from TTS.tts.configs.delightful_tts_config import DelightfulTtsArgs, DelightfulTTSConfig
 from TTS.tts.configs.shared_configs import BaseTTSConfig
 from TTS.tts.datasets.dataset import F0Dataset, TTSDataset, _parse_sample, get_attribute_balancer_weights
 from TTS.tts.layers.delightful_tts.acoustic_model import AcousticModel
@@ -302,9 +302,13 @@ class DelightfulTTS(BaseTTSE2E):
     """
 
     # pylint: disable=dangerous-default-value
+
+    config: DelightfulTTSConfig
+    args: DelightfulTtsArgs
+
     def __init__(
         self,
-        config: DelightfulTTSConfig,
+        config: Coqpit,
         ap,
         tokenizer: "TTSTokenizer" = None,
         speaker_manager: SpeakerManager = None,

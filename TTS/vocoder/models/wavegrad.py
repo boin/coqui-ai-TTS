@@ -41,9 +41,10 @@ class Wavegrad(BaseVocoder):
         Audio samples are available at this https URL.
     """
 
-    def __init__(self, config: WavegradConfig):
+    config: WavegradConfig
+
+    def __init__(self, config: Coqpit):
         super().__init__(config)
-        self.config = config
         self.use_weight_norm = config.model_params.use_weight_norm
         self.hop_len = np.prod(config.model_params.upsample_factors)
         self.noise_level = None

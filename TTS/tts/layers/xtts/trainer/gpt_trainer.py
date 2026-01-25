@@ -65,12 +65,13 @@ def callback_clearml_load_save(operation_type, model_info):
 
 
 class GPTTrainer(BaseTTS):
+    config: XttsConfig
+
     def __init__(self, config: Coqpit):
         """
-        Tortoise GPT training class
+        XTTS GPT training class
         """
         super().__init__(config, ap=None, tokenizer=None)
-        self.config = config
         # init XTTS model
         self.xtts = Xtts(self.config)
         # create the tokenizer with the target vocabulary

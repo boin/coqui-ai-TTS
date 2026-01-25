@@ -5,6 +5,7 @@ from coqpit import Coqpit
 from monotonic_alignment_search import maximum_path
 from torch import nn
 
+from TTS.tts.configs.forward_tts_config import ForwardTTSArgs
 from TTS.tts.layers.feed_forward.decoder import Decoder
 from TTS.tts.layers.feed_forward.encoder import Encoder
 from TTS.tts.layers.generic.aligner import AlignmentNetwork
@@ -47,6 +48,8 @@ class ForwardTTS(BaseTTS):
         >>> config = FastPitchConfig()
         >>> model = ForwardTTS(config)
     """
+
+    args: ForwardTTSArgs
 
     # pylint: disable=dangerous-default-value
     def __init__(

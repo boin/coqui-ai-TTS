@@ -7,10 +7,11 @@ from typing import Any
 import torch
 import torch.nn.functional as F
 import torchaudio
+from coqpit import Coqpit
 from tqdm import tqdm
 
 from TTS.tts.configs.shared_configs import BaseTTSConfig
-from TTS.tts.configs.tortoise_config import TortoiseConfig
+from TTS.tts.configs.tortoise_config import TortoiseArgs, TortoiseConfig
 from TTS.tts.layers.tortoise.arch_utils import TorchMelSpectrogram
 from TTS.tts.layers.tortoise.audio_utils import (
     denormalize_tacotron_mel,
@@ -222,10 +223,12 @@ class Tortoise(BaseTTS):
         >>> model.load_checkpoint(config, checkpoint_dir="paths/to/models_dir/", eval=True)
     """
 
-    def __init__(self, config: TortoiseConfig):
+    config: TortoiseConfig
+    args: TortoiseArgs
+
+    def __init__(self, config: Coqpit):
         super().__init__(config, ap=None, tokenizer=None)
         self.mel_norm_path = None
-        self.config = config
         self.ar_checkpoint = self.args.ar_checkpoint
         self.diff_checkpoint = self.args.diff_checkpoint  # TODO: check if this is even needed
         self.models_dir = config.model_dir

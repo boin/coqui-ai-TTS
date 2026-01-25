@@ -21,6 +21,7 @@ from trainer.torch import DistributedSampler, DistributedSamplerWrapper
 from trainer.trainer_utils import get_optimizer, get_scheduler
 
 from TTS.tts.configs.shared_configs import CharactersConfig
+from TTS.tts.configs.vits_config import VitsArgs, VitsConfig
 from TTS.tts.datasets.dataset import TTSDataset, _parse_sample, get_attribute_balancer_weights
 from TTS.tts.layers.glow_tts.duration_predictor import DurationPredictor
 from TTS.tts.layers.vits.discriminator import VitsDiscriminator
@@ -215,6 +216,9 @@ class Vits(BaseTTS):
         >>> config = VitsConfig()
         >>> model = Vits(config)
     """
+
+    config: VitsConfig
+    args: VitsArgs
 
     def __init__(
         self,

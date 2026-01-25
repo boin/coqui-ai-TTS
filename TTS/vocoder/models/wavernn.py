@@ -132,7 +132,9 @@ class Upsample(nn.Module):
 
 
 class Wavernn(BaseVocoder):
-    def __init__(self, config: WavernnConfig):
+    config: WavernnConfig
+
+    def __init__(self, config: Coqpit):
         """🐸 WaveRNN model.
         Original paper - https://arxiv.org/abs/1802.08435
         Official implementation - https://github.com/fatchord/WaveRNN

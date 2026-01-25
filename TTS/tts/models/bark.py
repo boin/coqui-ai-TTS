@@ -10,6 +10,7 @@ import torchaudio
 from coqpit import Coqpit
 from transformers import AutoProcessor, BertTokenizer, EncodecModel
 
+from TTS.tts.configs.bark_config import BarkConfig
 from TTS.tts.configs.shared_configs import BaseTTSConfig
 from TTS.tts.layers.bark.hubert.hubert_manager import HubertManager
 from TTS.tts.layers.bark.hubert.kmeans_hubert import CustomHubert
@@ -34,6 +35,8 @@ logger = logging.getLogger(__name__)
 
 
 class Bark(BaseTTS):
+    config: BarkConfig
+
     def __init__(
         self,
         config: Coqpit,
