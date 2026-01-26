@@ -225,17 +225,9 @@
             "multi-dataset": {
                 "tortoise-v2": {
                     "description": "Tortoise tts model https://github.com/neonbjb/tortoise-tts",
-                    "github_rls_url": [
-                        "https://github.com/coqui-ai/TTS/releases/download/v0.14.1_models/autoregressive.pth",
-                        "https://github.com/coqui-ai/TTS/releases/download/v0.14.1_models/clvp2.pth",
-                        "https://github.com/coqui-ai/TTS/releases/download/v0.14.1_models/cvvp.pth",
-                        "https://github.com/coqui-ai/TTS/releases/download/v0.14.1_models/diffusion_decoder.pth",
-                        "https://github.com/coqui-ai/TTS/releases/download/v0.14.1_models/rlg_auto.pth",
-                        "https://github.com/coqui-ai/TTS/releases/download/v0.14.1_models/rlg_diffuser.pth",
-                        "https://github.com/coqui-ai/TTS/releases/download/v0.14.1_models/vocoder.pth",
-                        "https://github.com/coqui-ai/TTS/releases/download/v0.14.1_models/mel_norms.pth",
-                        "https://github.com/coqui-ai/TTS/releases/download/v0.14.1_models/config.json"
-                    ],
+                    "repo_id": "jbetker/tortoise-tts-v2",
+                    "allow": ["data/mel_norms.pth", ".models/*.pth"],
+                    "ignore": [".models/classifier.pth", "clvp.pth"],
                     "default_vocoder": null,
                     "author": "@neonbjb - James Betker, @manmay-nakhashi Manmay Nakhashi",
                     "license": "apache 2.0"

@@ -22,9 +22,6 @@ class TortoiseArgs(ModelArgs):
         enable_redaction (bool, optional): Whether to enable redaction. Defaults to True.
         high_vram (bool, optional): Deprecated, has no effect.
         kv_cache (bool, optional): Whether to use the kv_cache. Defaults to True.
-        ar_checkpoint (str, optional): The checkpoint for the autoregressive model. Defaults to None.
-        clvp_checkpoint (str, optional): The checkpoint for the ConditionalLatentVariablePerseq model. Defaults to None.
-        diff_checkpoint (str, optional): The checkpoint for the DiffTTS model. Defaults to None.
         num_chars (int, optional): The maximum number of characters to generate. Defaults to 255.
 
         For UnifiedVoice model:
@@ -72,9 +69,6 @@ class TortoiseArgs(ModelArgs):
     enable_redaction: bool = False
     high_vram: bool = False
     kv_cache: bool = True
-    ar_checkpoint: str = None
-    clvp_checkpoint: str = None
-    diff_checkpoint: str = None
     num_chars: int = 255
 
     # UnifiedVoice params
@@ -133,9 +127,6 @@ class TortoiseConfig(BaseTTSConfig):
         audio (TortoiseAudioConfig):
             Audio processing configuration. Defaults to `TortoiseAudioConfig()`.
 
-        model_dir (str):
-            Path to the folder that has all the Tortoise models. Defaults to None.
-
         temperature (float):
             Temperature for the autoregressive model inference. Larger values makes predictions more creative sacrificing stability. Defaults to `0.2`.
 
@@ -187,7 +178,6 @@ class TortoiseConfig(BaseTTSConfig):
     # model specific params
     model_args: TortoiseArgs = field(default_factory=TortoiseArgs)
     audio: TortoiseAudioConfig = field(default_factory=TortoiseAudioConfig)
-    model_dir: str = None
 
     # settings
     temperature: float = 0.2

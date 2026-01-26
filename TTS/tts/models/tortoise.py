@@ -1,6 +1,7 @@
 import logging
 import os
 import random
+from pathlib import Path
 from time import time
 from typing import Any
 
@@ -166,6 +167,9 @@ def classify_audio_clip(clip, model_dir):
     :param clip: torch tensor containing audio waveform data (get it from load_audio)
     :return: True if the clip was classified as coming from Tortoise and false if it was classified as real.
     """
+    from huggingface_hub import hf_hub_download
+
+    classifier_path = hf_hub_download("jbetker/tortoise-tts-v2", ".models/classifier.pth")
     classifier = AudioMiniEncoderWithClassifierHead(
         2,
         spec_dim=1,
@@ -181,11 +185,7 @@ def classify_audio_clip(clip, model_dir):
         distribute_zero_label=False,
     )
     classifier.load_state_dict(
-        torch.load(
-            os.path.join(model_dir, "classifier.pth"),
-            map_location=torch.device("cpu"),
-            weights_only=is_pytorch_at_least_2_4(),
-        )
+        torch.load(classifier_path, map_location=torch.device("cpu"), weights_only=is_pytorch_at_least_2_4())
     )
     clip = clip.cpu().unsqueeze(0)
     results = F.softmax(classifier(clip), dim=-1)
@@ -229,9 +229,6 @@ class Tortoise(BaseTTS):
     def __init__(self, config: Coqpit):
         super().__init__(config, ap=None, tokenizer=None)
         self.mel_norm_path = None
-        self.ar_checkpoint = self.args.ar_checkpoint
-        self.diff_checkpoint = self.args.diff_checkpoint  # TODO: check if this is even needed
-        self.models_dir = config.model_dir
         self.autoregressive_batch_size = (
             pick_best_batch_size_for_gpu()
             if self.args.autoregressive_batch_size is None
@@ -368,7 +365,7 @@ class Tortoise(BaseTTS):
             self.rlg_auto = RandomLatentConverter(1024).eval()
             self.rlg_auto.load_state_dict(
                 torch.load(
-                    os.path.join(self.models_dir, "rlg_auto.pth"),
+                    next(self.models_dir.rglob("rlg_auto.pth")),
                     map_location=torch.device("cpu"),
                     weights_only=is_pytorch_at_least_2_4(),
                 )
@@ -376,7 +373,7 @@ class Tortoise(BaseTTS):
             self.rlg_diffusion = RandomLatentConverter(2048).eval()
             self.rlg_diffusion.load_state_dict(
                 torch.load(
-                    os.path.join(self.models_dir, "rlg_diffuser.pth"),
+                    next(self.models_dir.rglob("rlg_diffuser.pth")),
                     map_location=torch.device("cpu"),
                     weights_only=is_pytorch_at_least_2_4(),
                 )
@@ -725,10 +722,6 @@ class Tortoise(BaseTTS):
         self,
         config,
         checkpoint_dir,
-        ar_checkpoint_path=None,
-        diff_checkpoint_path=None,
-        clvp_checkpoint_path=None,
-        vocoder_checkpoint_path=None,
         eval=False,
         strict=True,
         **kwargs,
@@ -740,22 +733,18 @@ class Tortoise(BaseTTS):
         Args:
             config (TortoiseConfig): The model config.
             checkpoint_dir (str): The directory where the checkpoints are stored.
-            ar_checkpoint_path (str, optional): The path to the autoregressive checkpoint. Defaults to None.
-            diff_checkpoint_path (str, optional): The path to the diffusion checkpoint. Defaults to None.
-            clvp_checkpoint_path (str, optional): The path to the CLVP checkpoint. Defaults to None.
-            vocoder_checkpoint_path (str, optional): The path to the vocoder checkpoint. Defaults to None.
             eval (bool, optional): Whether to set the model to eval mode. Defaults to False.
             strict (bool, optional): Whether to load the model strictly. Defaults to True.
         """
-        if self.models_dir is None:
-            self.models_dir = checkpoint_dir
-        ar_path = ar_checkpoint_path or os.path.join(checkpoint_dir, "autoregressive.pth")
-        diff_path = diff_checkpoint_path or os.path.join(checkpoint_dir, "diffusion_decoder.pth")
-        clvp_path = clvp_checkpoint_path or os.path.join(checkpoint_dir, "clvp2.pth")
-        vocoder_checkpoint_path = vocoder_checkpoint_path or os.path.join(checkpoint_dir, "vocoder.pth")
-        self.mel_norm_path = os.path.join(checkpoint_dir, "mel_norms.pth")
+        checkpoint_dir = Path(checkpoint_dir)
+        self.models_dir = checkpoint_dir
+        ar_path = next(checkpoint_dir.rglob("autoregressive.pth"))
+        diff_path = next(checkpoint_dir.rglob("diffusion_decoder.pth"))
+        clvp_path = next(checkpoint_dir.rglob("clvp2.pth"))
+        vocoder_checkpoint_path = next(checkpoint_dir.rglob("vocoder.pth"))
+        self.mel_norm_path = next(checkpoint_dir.rglob("mel_norms.pth"))
 
-        if os.path.exists(ar_path):
+        if ar_path.is_file():
             # remove keys from the checkpoint that are not in the model
             checkpoint = torch.load(ar_path, map_location=torch.device("cpu"), weights_only=is_pytorch_at_least_2_4())
 
@@ -763,13 +752,13 @@ class Tortoise(BaseTTS):
             # due to removed `bias` and `masked_bias` changes in Transformers
             self.autoregressive.load_state_dict(checkpoint, strict=False)
 
-        if os.path.exists(diff_path):
+        if diff_path.is_file():
             self.diffusion.load_state_dict(torch.load(diff_path, weights_only=is_pytorch_at_least_2_4()), strict=strict)
 
-        if os.path.exists(clvp_path):
+        if clvp_path.is_file():
             self.clvp.load_state_dict(torch.load(clvp_path, weights_only=is_pytorch_at_least_2_4()), strict=strict)
 
-        if os.path.exists(vocoder_checkpoint_path):
+        if vocoder_checkpoint_path.is_file():
             self.vocoder.load_state_dict(
                 torch.load(
                     vocoder_checkpoint_path,

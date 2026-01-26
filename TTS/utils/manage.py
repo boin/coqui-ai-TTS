@@ -15,6 +15,7 @@ from trainer.io import get_user_data_dir
 from typing_extensions import Required
 
 from TTS.config import load_config
+from TTS.tts.configs.tortoise_config import TortoiseConfig
 from TTS.vc.configs.knnvc_config import KNNVCConfig
 
 logger = logging.getLogger(__name__)
@@ -344,7 +345,7 @@ class ModelManager:
         """
         model_item, model_full_name, model = self._set_model_item(model_name)
         # set the model specific output path
-        output_path = Path(self.output_prefix) / model_full_name
+        output_path = self.output_prefix / model_full_name
         if output_path.is_dir() and "repo_id" not in model_item:
             logger.info("%s is already downloaded.", model_name)
         else:
@@ -357,7 +358,12 @@ class ModelManager:
         if model == "knnvc" and not output_config_path.exists():
             knnvc_config = KNNVCConfig()
             knnvc_config.save_json(output_config_path)
-        if "fairseq" not in model_name and "openvoice" not in model_name:
+        if model == "tortoise-v2" and not output_config_path.exists():
+            output_config_path = self.output_prefix / model_full_name / "config.json"
+            if not output_config_path.is_file():
+                tortoise_config = TortoiseConfig()
+                tortoise_config.save_json(output_config_path)
+        if all(x not in model_name for x in ("fairseq", "openvoice")):
             # Update paths in config, except for external models
             self._update_paths(output_path, output_config_path)
         return output_model_path, output_config_path, model_item
