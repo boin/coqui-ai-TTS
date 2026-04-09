@@ -20,7 +20,7 @@ from trainer.io import load_fsspec
 from trainer.torch import DistributedSampler, DistributedSamplerWrapper
 from trainer.trainer_utils import get_optimizer, get_scheduler
 
-from TTS.tts.configs.shared_configs import CharactersConfig
+from TTS.tts.configs.shared_configs import BaseTTSConfig, CharactersConfig
 from TTS.tts.configs.vits_config import VitsArgs, VitsConfig
 from TTS.tts.datasets.dataset import TTSDataset, _parse_sample, get_attribute_balancer_weights
 from TTS.tts.layers.glow_tts.duration_predictor import DurationPredictor
@@ -34,7 +34,6 @@ from TTS.tts.utils.languages import LanguageManager
 from TTS.tts.utils.speakers import SpeakerManager
 from TTS.tts.utils.text.characters import BaseCharacters, BaseVocabulary, _characters, _pad, _phonemes, _punctuations
 from TTS.tts.utils.text.tokenizer import TTSTokenizer
-from TTS.tts.utils.visual import plot_alignment
 from TTS.utils.audio.torch_transforms import spec_to_mel, wav_to_mel, wav_to_spec
 from TTS.utils.samplers import BucketBatchSampler
 from TTS.vocoder.models.hifigan_generator import HifiganGenerator
@@ -889,6 +888,8 @@ class Vits(BaseTTS):
         raise ValueError(" [!] Unexpected `optimizer_idx`.")
 
     def _create_logs(self, batch, outputs: list[dict[str, Any]]):
+        from TTS.tts.utils.visual import plot_alignment
+
         y_hat = outputs[1]["model_outputs"]
         y = outputs[1]["waveform_seg"]
         figures = plot_results(y_hat, y, self.ap)
@@ -908,6 +909,8 @@ class Vits(BaseTTS):
         Returns:
             Dictionary with test figures and audios to be projected to Tensorboard.
         """
+        from TTS.tts.utils.visual import plot_alignment
+
         logger.info("Synthesizing test sentences.")
         test_audios = {}
         test_figures = {}
@@ -1209,7 +1212,7 @@ class Vits(BaseTTS):
         self.config.audio.sample_rate = config_org["data"]["sampling_rate"]
         is_uroman = config_org["data"]["training_files"].endswith("uroman")
         # set tokenizer
-        vocab = FairseqVocab(vocab_file)
+        vocab = FairseqVocab.init_from_vocab_file(vocab_file)
         self.text_encoder.emb = nn.Embedding(vocab.num_chars, config.model_args.hidden_channels)
         self.tokenizer = TTSTokenizer(
             use_phonemes=False,
@@ -1404,22 +1407,32 @@ class VitsCharacters(BaseCharacters):
     ) -> None:
         if ipa_characters is not None:
             graphemes += ipa_characters
-        super().__init__(graphemes, punctuations, pad, None, None, "<BLNK>", is_unique=False, is_sorted=True)
+        super().__init__(
+            characters=graphemes,
+            punctuations=punctuations,
+            pad=pad,
+            eos=None,
+            bos=None,
+            blank="<BLNK>",
+            is_unique=False,
+            is_sorted=True,
+        )
 
     def _create_vocab(self):
-        self._vocab = [self._pad] + list(self._punctuations) + list(self._characters) + [self._blank]
+        self._vocab = [self.pad, *self.punctuations, *self.characters, self.blank]
         self._char_to_id = {char: idx for idx, char in enumerate(self.vocab)}
         self._id_to_char = dict(enumerate(self.vocab))
 
     @staticmethod
-    def init_from_config(config: Coqpit):
+    def init_from_config(config: BaseTTSConfig):
         if config.characters is not None:
-            _pad = config.characters["pad"]
-            _punctuations = config.characters["punctuations"]
-            _letters = config.characters["characters"]
-            _letters_ipa = config.characters["phonemes"]
             return (
-                VitsCharacters(graphemes=_letters, ipa_characters=_letters_ipa, punctuations=_punctuations, pad=_pad),
+                VitsCharacters(
+                    graphemes=config.characters["characters"],
+                    ipa_characters=config.characters["phonemes"],
+                    punctuations=config.characters["punctuations"],
+                    pad=config.characters["pad"],
+                ),
                 config,
             )
         characters = VitsCharacters()
@@ -1428,31 +1441,26 @@ class VitsCharacters(BaseCharacters):
 
     def to_config(self) -> "CharactersConfig":
         return CharactersConfig(
-            characters=self._characters,
-            punctuations=self._punctuations,
-            pad=self._pad,
+            characters=self.characters,
+            punctuations=self.punctuations,
+            pad=self.pad,
             eos=None,
             bos=None,
-            blank=self._blank,
+            blank=self.blank,
             is_unique=False,
             is_sorted=True,
         )
 
 
 class FairseqVocab(BaseVocabulary):
-    def __init__(self, vocab: str | os.PathLike[Any]) -> None:
-        self.vocab = vocab
-
-    @property
-    def vocab(self) -> list[str]:
-        """Return the vocabulary dictionary."""
-        return self._vocab
-
-    @vocab.setter
-    def vocab(self, vocab_file: str | os.PathLike[Any]) -> None:
-        with open(vocab_file, encoding="utf-8") as f:
-            self._vocab = [line.replace("\n", "") for line in f]
-        self.blank = self._vocab[0]
-        self.pad = " "
-        self._char_to_id = {s: i for i, s in enumerate(self._vocab)}  # pylint: disable=unnecessary-comprehension
-        self._id_to_char = dict(enumerate(self._vocab))
+    @staticmethod
+    def init_from_vocab_file(vocab_file: Path) -> "FairseqVocab":
+        """Create vocabulary from a Fairseq vocab.txt file."""
+        vocab = FairseqVocab(vocab=None)
+        with vocab_file.open(encoding="utf-8") as f:
+            vocab._vocab = [line.replace("\n", "") for line in f]
+        vocab.blank = vocab._vocab[0]
+        vocab.pad = " "
+        vocab._char_to_id = {s: i for i, s in enumerate(vocab._vocab)}
+        vocab._id_to_char = dict(enumerate(vocab._vocab))
+        return vocab
