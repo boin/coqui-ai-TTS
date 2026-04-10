@@ -113,8 +113,8 @@ class TTS(nn.Module):
         if self.synthesizer is not None:
             if self.synthesizer.tts_model.config.supports_cloning:
                 return True
-            if hasattr(self.synthesizer.tts_model, "speaker_manager") and self.synthesizer.tts_model.speaker_manager:
-                return self.synthesizer.tts_model.speaker_manager.num_speakers > 1
+            if speaker_manager := getattr(self.synthesizer.tts_model, "speaker_manager", None):
+                return speaker_manager.num_speakers > 1
         return False
 
     @property
@@ -127,11 +127,7 @@ class TTS(nn.Module):
             and ("xtts" in self.config.model or "languages" in self.config and len(self.config.languages) > 1)
         ):
             return True
-        if (
-            self.synthesizer is not None
-            and hasattr(self.synthesizer.tts_model, "language_manager")
-            and self.synthesizer.tts_model.language_manager
-        ):
+        if self.synthesizer is not None and self.synthesizer.tts_model is not None:
             return self.synthesizer.tts_model.language_manager.num_languages > 1
         return False
 

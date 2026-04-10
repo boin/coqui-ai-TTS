@@ -30,12 +30,9 @@ from TTS.tts.layers.vits.discriminator import VitsDiscriminator
 from TTS.tts.models.base_tts import BaseTTSE2E
 from TTS.tts.models.vits import load_audio
 from TTS.tts.utils.helpers import average_over_durations, compute_attn_prior, rand_segments, segment, sequence_mask
-from TTS.tts.utils.speakers import SpeakerManager
-from TTS.tts.utils.text.tokenizer import TTSTokenizer
 from TTS.utils.audio.numpy_transforms import build_mel_basis, compute_f0
 from TTS.utils.audio.numpy_transforms import db_to_amp as db_to_amp_numpy
 from TTS.utils.audio.numpy_transforms import mel_to_wav as mel_to_wav_numpy
-from TTS.utils.audio.processor import AudioProcessor
 from TTS.utils.audio.torch_transforms import wav_to_mel, wav_to_spec
 from TTS.utils.generic_utils import warn_synthesize_config_deprecated, warn_synthesize_speaker_id_deprecated
 from TTS.vocoder.layers.losses import MultiScaleSTFTLoss
@@ -142,7 +139,7 @@ class ForwardTTSE2eDataset(TTSDataset):
         wav_filename = os.path.basename(item["audio_file"])
 
         try:
-            token_ids = self.get_token_ids(idx, item["text"])
+            token_ids = self.get_token_ids(idx, item["text"], item["language"])
         except:
             logger.exception("%s %s", idx, item)
             # pylint: disable=raise-missing-from
@@ -300,25 +297,25 @@ class DelightfulTTS(BaseTTSE2E):
         >>> model = ForwardTTSE2e(config)
     """
 
-    # pylint: disable=dangerous-default-value
-
     config: DelightfulTTSConfig
     args: DelightfulTtsArgs
 
     def __init__(
         self,
         config: Coqpit,
-        ap,
-        tokenizer: "TTSTokenizer" = None,
-        speaker_manager: SpeakerManager = None,
+        ap: None = None,
+        tokenizer: None = None,
+        speaker_manager: None = None,
     ):
-        super().__init__(config=config, ap=ap, tokenizer=tokenizer, speaker_manager=speaker_manager)
-        self.init_multispeaker(config)
+        super().__init__(config, ap, tokenizer, speaker_manager)
+        self.init_multispeaker()
         self.binary_loss_weight = None
 
         self.args.out_channels = self.config.audio.num_mels
         self.args.num_mels = self.config.audio.num_mels
-        self.acoustic_model = AcousticModel(args=self.args, tokenizer=tokenizer, speaker_manager=speaker_manager)
+        self.acoustic_model = AcousticModel(
+            args=self.args, tokenizer=self.tokenizer, speaker_manager=self.speaker_manager
+        )
 
         self.waveform_decoder = HifiganGenerator(
             self.config.audio.num_mels,
@@ -386,35 +383,12 @@ class DelightfulTTS(BaseTTSE2E):
         )  # pylint: disable=attribute-defined-outside-init
         self.update_energy_scaler = True  # pylint: disable=attribute-defined-outside-init
 
-    def init_multispeaker(self, config: Coqpit):
-        """Init for multi-speaker training.
-
-        Args:
-            config (Coqpit): Model configuration.
-        """
-        self.embedded_speaker_dim = 0
-        self.num_speakers = self.args.num_speakers
-        self.audio_transform = None
-
-        if self.speaker_manager:
-            self.num_speakers = self.speaker_manager.num_speakers
-            self.args.num_speakers = self.speaker_manager.num_speakers
-
-        if self.args.use_speaker_embedding:
-            self._init_speaker_embedding()
-
-        if self.args.use_d_vector_file:
-            self._init_d_vector()
-
     def _init_speaker_embedding(self):
-        # pylint: disable=attribute-defined-outside-init
         if self.num_speakers > 0:
-            logger.info("Initialization of speaker-embedding layers.")
             self.embedded_speaker_dim = self.args.speaker_embedding_channels
             self.args.embedded_speaker_dim = self.args.speaker_embedding_channels
 
     def _init_d_vector(self):
-        # pylint: disable=attribute-defined-outside-init
         if hasattr(self, "emb_g"):
             raise ValueError("[!] Speaker embedding layer already initialized before d_vector settings.")
         self.embedded_speaker_dim = self.args.d_vector_dim
@@ -802,7 +776,8 @@ class DelightfulTTS(BaseTTSE2E):
             warn_synthesize_speaker_id_deprecated()
 
         # convert text to sequence of token IDs
-        text_inputs = self.tokenizer.text_to_ids(text, language=None)
+        language = kwargs.pop("language", None)
+        text_inputs = self.tokenizer.text_to_ids(text, language=language)
         text_inputs = torch.as_tensor(text_inputs, dtype=torch.long, device=self.device).unsqueeze(0)
 
         _speaker_id, d_vector = self._get_speaker_id_or_dvector(speaker, speaker_wav, voice_dir)
@@ -1080,21 +1055,6 @@ class DelightfulTTS(BaseTTSE2E):
         # stop updating mean and var
         # TODO: do the same for F0
         self.energy_scaler.eval()
-
-    @staticmethod
-    def init_from_config(config: "DelightfulTTSConfig", samples: list[list] | list[dict] = None):  # pylint: disable=unused-argument
-        """Initiate model from config
-
-        Args:
-            config (ForwardTTSE2eConfig): Model config.
-            samples (Union[List[List], List[Dict]]): Training samples to parse speaker ids for training.
-                Defaults to None.
-        """
-
-        tokenizer, new_config = TTSTokenizer.init_from_config(config)
-        speaker_manager = SpeakerManager.init_from_config(config.model_args, samples)
-        ap = AudioProcessor.init_from_config(config=config)
-        return DelightfulTTS(config=new_config, tokenizer=tokenizer, speaker_manager=speaker_manager, ap=ap)
 
     def get_state_dict(self):
         """Custom state dict of the model with all the necessary components for inference."""

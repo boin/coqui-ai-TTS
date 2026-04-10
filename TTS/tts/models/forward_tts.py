@@ -13,8 +13,6 @@ from TTS.tts.layers.generic.pos_encoding import PositionalEncoding
 from TTS.tts.layers.glow_tts.duration_predictor import DurationPredictor
 from TTS.tts.models.base_tts import BaseTTS
 from TTS.tts.utils.helpers import average_over_durations, expand_encoder_outputs, generate_attention, sequence_mask
-from TTS.tts.utils.speakers import SpeakerManager
-from TTS.tts.utils.text.tokenizer import TTSTokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +35,7 @@ class ForwardTTS(BaseTTS):
         - FastSpeech2 (requires average speech energy predictor)
 
     Args:
-        config (Coqpit): Model coqpit class.
-        speaker_manager (SpeakerManager): Speaker manager for multi-speaker training. Only used for multi-speaker models.
-            Defaults to None.
+        config: Model coqpit class.
 
     Examples:
         >>> from TTS.tts.configs.fast_pitch_config import FastPitchConfig
@@ -50,17 +46,16 @@ class ForwardTTS(BaseTTS):
 
     args: ForwardTTSArgs
 
-    # pylint: disable=dangerous-default-value
     def __init__(
         self,
         config: Coqpit,
-        ap: "AudioProcessor" = None,
-        tokenizer: "TTSTokenizer" = None,
-        speaker_manager: SpeakerManager = None,
+        ap: None = None,
+        tokenizer: None = None,
+        speaker_manager: None = None,
     ):
         super().__init__(config, ap, tokenizer, speaker_manager)
 
-        self.init_multispeaker(config)
+        self.init_multispeaker()
 
         self.max_duration = self.args.max_duration
         self.use_aligner = self.args.use_aligner
@@ -132,32 +127,15 @@ class ForwardTTS(BaseTTS):
                 in_query_channels=self.args.out_channels, in_key_channels=self.args.hidden_channels
             )
 
-    def init_multispeaker(self, config: Coqpit):
-        """Init for multi-speaker training.
+    def _init_speaker_embedding(self) -> None:
+        self.emb_g = nn.Embedding(self.num_speakers, self.args.hidden_channels)
+        nn.init.uniform_(self.emb_g.weight, -0.1, 0.1)
 
-        Args:
-            config (Coqpit): Model configuration.
-        """
-        self.embedded_speaker_dim = 0
-        # init speaker manager
-        if self.speaker_manager is None and (config.use_d_vector_file or config.use_speaker_embedding):
-            raise ValueError(
-                " > SpeakerManager is not provided. You must provide the SpeakerManager before initializing a multi-speaker model."
-            )
-        # set number of speakers
-        if self.speaker_manager is not None:
-            self.num_speakers = self.speaker_manager.num_speakers
-        # init d-vector embedding
-        if config.use_d_vector_file:
-            self.embedded_speaker_dim = config.d_vector_dim
-            if self.args.d_vector_dim != self.args.hidden_channels:
-                # self.proj_g = nn.Conv1d(self.args.d_vector_dim, self.args.hidden_channels, 1)
-                self.proj_g = nn.Linear(in_features=self.args.d_vector_dim, out_features=self.args.hidden_channels)
-        # init speaker embedding layer
-        if config.use_speaker_embedding and not config.use_d_vector_file:
-            logger.info("Init speaker_embedding layer.")
-            self.emb_g = nn.Embedding(self.num_speakers, self.args.hidden_channels)
-            nn.init.uniform_(self.emb_g.weight, -0.1, 0.1)
+    def _init_d_vector(self) -> None:
+        self.embedded_speaker_dim = self.config.d_vector_dim
+        if self.args.d_vector_dim != self.args.hidden_channels:
+            # self.proj_g = nn.Conv1d(self.args.d_vector_dim, self.args.hidden_channels, 1)
+            self.proj_g = nn.Linear(in_features=self.args.d_vector_dim, out_features=self.args.hidden_channels)
 
     def format_durations(self, o_dr_log, x_mask):
         """Format predicted durations.
@@ -612,19 +590,3 @@ class ForwardTTS(BaseTTS):
     def on_train_step_start(self, trainer):
         """Schedule binary loss weight."""
         self.binary_loss_weight = min(trainer.epochs_done / self.config.binary_loss_warmup_epochs, 1.0) * 1.0
-
-    @staticmethod
-    def init_from_config(config: "ForwardTTSConfig", samples: list[list] | list[dict] = None):
-        """Initiate model from config
-
-        Args:
-            config (ForwardTTSConfig): Model config.
-            samples (Union[List[List], List[Dict]]): Training samples to parse speaker ids for training.
-                Defaults to None.
-        """
-        from TTS.utils.audio import AudioProcessor
-
-        ap = AudioProcessor.init_from_config(config)
-        tokenizer, new_config = TTSTokenizer.init_from_config(config)
-        speaker_manager = SpeakerManager.init_from_config(config, samples)
-        return ForwardTTS(new_config, ap, tokenizer, speaker_manager)

@@ -4,7 +4,7 @@ import os
 from dataclasses import replace
 from itertools import chain
 from pathlib import Path
-from typing import Any, Union
+from typing import Any
 
 import numpy as np
 import torch
@@ -30,8 +30,6 @@ from TTS.tts.layers.vits.stochastic_duration_predictor import StochasticDuration
 from TTS.tts.models.base_tts import BaseTTS
 from TTS.tts.utils.fairseq import rehash_fairseq_vits_checkpoint
 from TTS.tts.utils.helpers import generate_path, rand_segments, segment, sequence_mask
-from TTS.tts.utils.languages import LanguageManager
-from TTS.tts.utils.speakers import SpeakerManager
 from TTS.tts.utils.text.characters import BaseCharacters, BaseVocabulary, _characters, _pad, _phonemes, _punctuations
 from TTS.tts.utils.text.tokenizer import TTSTokenizer
 from TTS.utils.audio.torch_transforms import spec_to_mel, wav_to_mel, wav_to_spec
@@ -96,7 +94,7 @@ class VitsDataset(TTSDataset):
 
         wav_filename = os.path.basename(item["audio_file"])
 
-        token_ids = self.get_token_ids(idx, item["text"])
+        token_ids = self.get_token_ids(idx, item["text"], item["language"])
 
         # after phonemization the text length may change
         # this is a shameful 🤭 hack to prevent longer phonemes
@@ -222,15 +220,27 @@ class Vits(BaseTTS):
     def __init__(
         self,
         config: Coqpit,
-        ap: Union["AudioProcessor", None] = None,
-        tokenizer: Union["TTSTokenizer", None] = None,
-        speaker_manager: SpeakerManager | None = None,
-        language_manager: LanguageManager | None = None,
+        ap: None = None,
+        tokenizer: None = None,
+        speaker_manager: None = None,
     ):
-        super().__init__(config, ap, tokenizer, speaker_manager, language_manager)
+        super().__init__(config, ap, tokenizer, speaker_manager)
 
-        self.init_multispeaker(config)
-        self.init_multilingual(config)
+        upsample_rate = torch.prod(torch.as_tensor(config.model_args.upsample_rates_decoder)).item()
+
+        if not config.model_args.encoder_sample_rate:
+            assert upsample_rate == config.audio.hop_length, (
+                f" [!] Product of upsample rates must be equal to the hop length - {upsample_rate} vs {config.audio.hop_length}"
+            )
+        else:
+            encoder_to_vocoder_upsampling_factor = config.audio.sample_rate / config.model_args.encoder_sample_rate
+            effective_hop_length = config.audio.hop_length * encoder_to_vocoder_upsampling_factor
+            assert config.model_args.interpolate_z or upsample_rate == effective_hop_length, (
+                f" [!] Product of upsample rates must be equal to the hop length - {upsample_rate} vs {effective_hop_length}"
+            )
+
+        self.init_multispeaker()
+        self.init_multilingual(self.config)
         self.init_upsampling()
 
         self.length_scale = self.args.length_scale
@@ -314,28 +324,16 @@ class Vits(BaseTTS):
                 use_spectral_norm=self.args.use_spectral_norm_disriminator,
             )
 
-    def init_multispeaker(self, config: Coqpit):
-        """Initialize multi-speaker modules of a model. A model can be trained either with a speaker embedding layer
+    def init_multispeaker(self) -> None:
+        """Initialize multi-speaker modules of a model.
+
+        A model can be trained either with a speaker embedding layer
         or with external `d_vectors` computed from a speaker encoder model.
 
         You must provide a `speaker_manager` at initialization to set up the multi-speaker modules.
-
-        Args:
-            config (Coqpit): Model configuration.
-            data (List, optional): Dataset items to infer number of speakers. Defaults to None.
         """
-        self.embedded_speaker_dim = 0
-        self.num_speakers = self.args.num_speakers
+        super().init_multispeaker()
         self.audio_transform = None
-
-        if self.speaker_manager:
-            self.num_speakers = self.speaker_manager.num_speakers
-
-        if self.args.use_speaker_embedding:
-            self._init_speaker_embedding()
-
-        if self.args.use_d_vector_file:
-            self._init_d_vector()
 
         # TODO: make this a function
         if self.args.use_speaker_encoder_as_loss:
@@ -359,14 +357,12 @@ class Vits(BaseTTS):
                 )
 
     def _init_speaker_embedding(self):
-        # pylint: disable=attribute-defined-outside-init
         if self.num_speakers > 0:
             logger.info("Initialization of speaker-embedding layers.")
             self.embedded_speaker_dim = self.args.speaker_embedding_channels
             self.emb_g = nn.Embedding(self.num_speakers, self.embedded_speaker_dim)
 
     def _init_d_vector(self):
-        # pylint: disable=attribute-defined-outside-init
         if hasattr(self, "emb_g"):
             raise ValueError("[!] Speaker embedding layer already initialized before d_vector settings.")
         self.embedded_speaker_dim = self.args.d_vector_dim
@@ -377,14 +373,12 @@ class Vits(BaseTTS):
         Args:
             config (Coqpit): Model configuration.
         """
-        if self.args.language_ids_file is not None:
-            self.language_manager = LanguageManager(language_ids_file_path=self.args.language_ids_file)
-
-        if self.args.use_language_embedding and self.language_manager:
+        # For one language this does not necessarily make sense, but need to support
+        # it for existing models that do this.
+        if self.args.use_language_embedding and self.language_manager.num_languages > 0:
             logger.info("Initialization of language-embedding layers.")
-            self.num_languages = self.language_manager.num_languages
             self.embedded_language_dim = self.args.embedded_language_dim
-            self.emb_l = nn.Embedding(self.num_languages, self.embedded_language_dim)
+            self.emb_l = nn.Embedding(self.language_manager.num_languages, self.embedded_language_dim)
             torch.nn.init.xavier_uniform_(self.emb_l.weight)
         else:
             self.embedded_language_dim = 0
@@ -505,14 +499,14 @@ class Vits(BaseTTS):
 
         return z, spec_segment_size, slice_ids, y_mask
 
-    def forward(  # pylint: disable=dangerous-default-value
+    def forward(
         self,
         x: torch.Tensor,
         x_lengths: torch.Tensor,
         y: torch.Tensor,
         y_lengths: torch.Tensor,
         waveform: torch.Tensor,
-        aux_input: dict[str, Any] = {"d_vectors": None, "speaker_ids": None, "language_ids": None},
+        aux_input: dict[str, Any] | None = None,
     ) -> dict:
         """Forward pass of the model.
 
@@ -551,6 +545,8 @@ class Vits(BaseTTS):
             - gt_spk_emb: :math:`[B, 1, speaker_encoder.proj_dim]`
             - syn_spk_emb: :math:`[B, 1, speaker_encoder.proj_dim]`
         """
+        if aux_input is None:
+            aux_input = {"d_vectors": None, "speaker_ids": None, "language_ids": None}
         outputs = {}
         g = self._get_speaker_conditioning(aux_input, "emb_g", normalize_embedding=False)
 
@@ -633,9 +629,9 @@ class Vits(BaseTTS):
     @torch.inference_mode()
     def inference(
         self,
-        x,
-        aux_input={"x_lengths": None, "d_vectors": None, "speaker_ids": None, "language_ids": None, "durations": None},
-    ):  # pylint: disable=dangerous-default-value
+        x: torch.Tensor,
+        aux_input: dict[str, Any] | None = None,
+    ):
         """
         Note:
             To run in batch mode, provide `x_lengths` else model assumes that the batch size is 1.
@@ -654,6 +650,14 @@ class Vits(BaseTTS):
             - m_p: :math:`[B, C, T_dec]`
             - logs_p: :math:`[B, C, T_dec]`
         """
+        if aux_input is None:
+            aux_input = {
+                "x_lengths": None,
+                "d_vectors": None,
+                "speaker_ids": None,
+                "language_ids": None,
+                "durations": None,
+            }
         g = self._get_speaker_conditioning(aux_input, "emb_g", normalize_embedding=False)
         x_lengths = self._set_x_lengths(x, aux_input)
 
@@ -947,7 +951,7 @@ class Vits(BaseTTS):
             d_vectors = torch.FloatTensor(d_vectors)
 
         # get language ids from language names
-        if self.language_manager is not None and self.language_manager.name_to_id and self.args.use_language_embedding:
+        if self.language_manager.name_to_id and self.args.use_language_embedding:
             language_ids = [self.language_manager.name_to_id[ln] for ln in batch["language_names"]]
 
         if language_ids is not None:
@@ -1229,41 +1233,6 @@ class Vits(BaseTTS):
             self.eval()
             assert not self.training
 
-    @staticmethod
-    def init_from_config(config: "VitsConfig", samples: list[list] | list[dict] = None):
-        """Initiate model from config
-
-        Args:
-            config (VitsConfig): Model config.
-            samples (Union[List[List], List[Dict]]): Training samples to parse speaker ids for training.
-                Defaults to None.
-        """
-        from TTS.utils.audio import AudioProcessor
-
-        upsample_rate = torch.prod(torch.as_tensor(config.model_args.upsample_rates_decoder)).item()
-
-        if not config.model_args.encoder_sample_rate:
-            assert upsample_rate == config.audio.hop_length, (
-                f" [!] Product of upsample rates must be equal to the hop length - {upsample_rate} vs {config.audio.hop_length}"
-            )
-        else:
-            encoder_to_vocoder_upsampling_factor = config.audio.sample_rate / config.model_args.encoder_sample_rate
-            effective_hop_length = config.audio.hop_length * encoder_to_vocoder_upsampling_factor
-            assert upsample_rate == effective_hop_length, (
-                f" [!] Product of upsample rates must be equal to the hop length - {upsample_rate} vs {effective_hop_length}"
-            )
-
-        ap = AudioProcessor.init_from_config(config)
-        tokenizer, new_config = TTSTokenizer.init_from_config(config)
-        speaker_manager = SpeakerManager.init_from_config(config, samples)
-        language_manager = LanguageManager.init_from_config(config)
-
-        if config.model_args.speaker_encoder_model_path:
-            speaker_manager.init_encoder(
-                config.model_args.speaker_encoder_model_path, config.model_args.speaker_encoder_config_path
-            )
-        return Vits(new_config, ap, tokenizer, speaker_manager, language_manager)
-
     def export_onnx(self, output_path: str = "coqui_vits.onnx", verbose: bool = True):
         """Export model to ONNX format for inference
 
@@ -1316,7 +1285,7 @@ class Vits(BaseTTS):
             dummy_input += (speaker_id,)
             input_names.append("sid")
 
-        if hasattr(self, "num_languages") and self.num_languages > 0 and self.embedded_language_dim > 0:
+        if self.language_manager.num_languages > 0 and self.embedded_language_dim > 0:
             language_id = torch.LongTensor([0])
             dummy_input += (language_id,)
             input_names.append("langid")

@@ -1,4 +1,5 @@
 import os
+import warnings
 from abc import abstractmethod
 from typing import Any
 
@@ -6,6 +7,7 @@ import torch
 from coqpit import Coqpit
 from trainer import TrainerModel
 from trainer.io import load_fsspec
+from typing_extensions import Self
 
 from TTS.config.shared_configs import BaseTrainingConfig
 
@@ -18,14 +20,19 @@ class BaseTrainerModel(TrainerModel):
 
     config: BaseTrainingConfig
 
-    @staticmethod
-    @abstractmethod
-    def init_from_config(config: Coqpit) -> "BaseTrainerModel":
+    @classmethod
+    def init_from_config(cls, config: Coqpit) -> Self:
         """Init the model and all its attributes from the given config.
 
         Override this depending on your model.
         """
-        ...
+        warnings.warn(
+            f"{cls.__name__}.init_from_config(config) is deprecated and will be removed soon, "
+            f"just initialize with {cls.__name__}(config)",
+            UserWarning,
+            stacklevel=2,
+        )
+        return cls(config)
 
     @abstractmethod
     def inference(self, input: torch.Tensor, aux_input: dict[str, Any] = {}) -> dict[str, Any]:

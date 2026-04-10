@@ -41,13 +41,13 @@ def main(arg_list: list[str] | None = None):
     CONFIG.audio.stats_path = None  # discard pre-defined stats
 
     # load audio processor
-    ap = AudioProcessor(**CONFIG.audio.to_dict())
+    ap = AudioProcessor(CONFIG.audio)
 
     # load the meta data of target dataset
     if args.data_path:
         dataset_items = list(Path(args.data_path).rglob("*.wav"))
     else:
-        dataset_items = load_tts_samples(CONFIG.datasets)[0]  # take only train data
+        dataset_items = load_tts_samples(CONFIG)[0]  # take only train data
     print(f" > There are {len(dataset_items)} files.")
 
     mel_sum = 0

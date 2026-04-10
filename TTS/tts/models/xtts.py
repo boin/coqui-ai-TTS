@@ -19,7 +19,7 @@ from TTS.tts.layers.xtts.gpt import GPT
 from TTS.tts.layers.xtts.hifigan_decoder import HifiDecoder
 from TTS.tts.layers.xtts.stream_generator import init_stream_support
 from TTS.tts.layers.xtts.tokenizer import VoiceBpeTokenizer, split_sentence
-from TTS.tts.layers.xtts.xtts_manager import LanguageManager, SpeakerManager
+from TTS.tts.layers.xtts.xtts_manager import SpeakerManager
 from TTS.tts.models.base_tts import BaseTTS
 from TTS.utils.generic_utils import (
     is_pytorch_at_least_2_4,
@@ -137,7 +137,7 @@ class Xtts(BaseTTS):
         >>> from TTS.tts.configs.xtts_config import XttsConfig
         >>> from TTS.tts.models.xtts import Xtts
         >>> config = XttsConfig()
-        >>> model = Xtts.init_from_config(config)
+        >>> model = Xtts(config)
         >>> model.load_checkpoint(config, checkpoint_dir="paths/to/models_dir/", eval=True)
     """
 
@@ -145,13 +145,13 @@ class Xtts(BaseTTS):
     tokenizer: VoiceBpeTokenizer
 
     def __init__(self, config: Coqpit):
-        super().__init__(config, ap=None, tokenizer=None)
+        self.tokenizer = VoiceBpeTokenizer()
+        super().__init__(config)
         self.mel_stats_path = None
         self.gpt_checkpoint = self.args.gpt_checkpoint
         self.decoder_checkpoint = self.args.decoder_checkpoint  # TODO: check if this is even needed
         self.gpt_batch_size = self.args.gpt_batch_size
 
-        self.tokenizer = VoiceBpeTokenizer()
         self.gpt = None
         self.init_models()
         self.register_buffer("mel_stats", torch.ones(80))
@@ -630,10 +630,6 @@ class Xtts(BaseTTS):
             "XTTS has a dedicated trainer, please check the XTTS docs: https://coqui-tts.readthedocs.io/en/latest/models/xtts.html#training"
         )
 
-    @staticmethod
-    def init_from_config(config: "XttsConfig", **kwargs):  # pylint: disable=unused-argument
-        return Xtts(config)
-
     def eval(self):  # pylint: disable=redefined-builtin
         """Sets the model to evaluation mode. Overrides the default eval() method to also set the GPT model to eval mode."""
         self.gpt.init_gpt_for_inference()
@@ -716,7 +712,6 @@ class Xtts(BaseTTS):
         if speaker_file_path is None:
             speaker_file_path = checkpoint_dir / "speakers_xtts.pth"
 
-        self.language_manager = LanguageManager(config)
         self.speaker_manager = None
         if speaker_file_path is not None and os.path.exists(speaker_file_path):
             self.speaker_manager = SpeakerManager(speaker_file_path)

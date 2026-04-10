@@ -363,13 +363,13 @@ def main(arg_list: list[str] | None = None):
     global meta_data_eval
     global train_classes
 
-    ap = AudioProcessor(**c.audio)
+    ap = AudioProcessor(c.audio)
     model = setup_encoder_model(c)
 
     optimizer = get_optimizer(c.optimizer, c.optimizer_params, c.lr, model)
 
     # pylint: disable=redefined-outer-name
-    meta_data_train, meta_data_eval = load_tts_samples(c.datasets, eval_split=True)
+    meta_data_train, meta_data_eval = load_tts_samples(c, eval_split=True)
 
     train_data_loader, train_classes, map_classid_to_classname = setup_loader(c, ap, is_val=False)
     if c.run_eval:

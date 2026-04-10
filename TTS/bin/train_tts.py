@@ -45,14 +45,14 @@ def main(arg_list: list[str] | None = None):
 
     # load training samples
     train_samples, eval_samples = load_tts_samples(
-        config.datasets,
+        config,
         eval_split=True,
         eval_split_max_size=config.eval_split_max_size,
         eval_split_size=config.eval_split_size,
     )
 
     # init the model from config
-    model = setup_model(config, train_samples + eval_samples)
+    model = setup_model(config)
 
     # init the trainer and 🚀
     trainer = Trainer(

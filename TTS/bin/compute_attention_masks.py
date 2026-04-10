@@ -14,7 +14,6 @@ from TTS.config import load_config
 from TTS.config.shared_configs import BaseDatasetConfig
 from TTS.tts.datasets import load_tts_samples
 from TTS.tts.models import setup_model
-from TTS.tts.utils.text.tokenizer import TTSTokenizer
 from TTS.utils.generic_utils import ConsoleFormatter, setup_logger
 
 logger = logging.getLogger(__name__)
@@ -106,7 +105,6 @@ def compute_attention_masks(
 
     config = load_config(config_path)
     config.eval_batch_size = batch_size
-    tokenizer, config = TTSTokenizer.init_from_config(config)
 
     # load the model
     model = setup_model(config)
@@ -115,8 +113,8 @@ def compute_attention_masks(
         model.cuda()
 
     # create data loader
-    dataset_config = BaseDatasetConfig(formatter=formatter, meta_file_train=metafile, path=data_path)
-    samples, _ = load_tts_samples(dataset_config, eval_split=False)
+    config.datasets = [BaseDatasetConfig(formatter=formatter, meta_file_train=metafile, path=data_path)]
+    samples, _ = load_tts_samples(config, eval_split=False)
     loader = model.get_data_loader(config, assets=None, is_eval=True, samples=samples, verbose=True, num_gpus=0)
 
     # compute attentions

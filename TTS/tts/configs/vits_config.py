@@ -1,20 +1,7 @@
 from dataclasses import dataclass, field
 
-from coqpit import Coqpit
-
-from TTS.config.shared_configs import ModelArgs
+from TTS.config.shared_configs import BaseAudioConfig, ModelArgs
 from TTS.tts.configs.shared_configs import BaseTTSConfig
-
-
-@dataclass
-class VitsAudioConfig(Coqpit):
-    fft_size: int = 1024
-    sample_rate: int = 22050
-    win_length: int = 1024
-    hop_length: int = 256
-    num_mels: int = 80
-    mel_fmin: int = 0
-    mel_fmax: int | None = None
 
 
 @dataclass
@@ -81,8 +68,8 @@ class VitsArgs(ModelArgs):
             Dilation sizes of the residual blocks in the decoder network. Defaults to `[[1, 3, 5], [1, 3, 5], [1, 3, 5]]`.
 
         upsample_rates_decoder (List[int]):
-            Upsampling rates for each concecutive upsampling layer in the decoder network. The multiply of these
-            values must be equal to the kop length used for computing spectrograms. Defaults to `[8, 8, 2, 2]`.
+            Upsampling rates for each consecutive upsampling layer in the decoder network. The product of these
+            values must be equal to the hop length used for computing spectrograms. Defaults to `[8, 8, 2, 2]`.
 
         upsample_initial_channel_decoder (int):
             Number of hidden channels of the first upsampling convolution layer of the decoder network. Defaults to 512.
@@ -122,9 +109,6 @@ class VitsArgs(ModelArgs):
 
         use_speaker_embedding (bool):
             Enable/Disable speaker embedding for multi-speaker models. Defaults to False.
-
-        num_speakers (int):
-            Number of speakers for the speaker embedding layer. Defaults to 0.
 
         speakers_file (str):
             Path to the speaker mapping file for the Speaker Manager. Defaults to None.
@@ -226,7 +210,6 @@ class VitsArgs(ModelArgs):
     init_discriminator: bool = True
     use_spectral_norm_disriminator: bool = False
     use_speaker_embedding: bool = False
-    num_speakers: int = 0
     speakers_file: str | None = None
     d_vector_file: str | list[str] | None = None
     speaker_embedding_channels: int = 256
@@ -262,8 +245,8 @@ class VitsConfig(BaseTTSConfig):
         model_args (VitsArgs):
             Model architecture arguments. Defaults to `VitsArgs()`.
 
-        audio (VitsAudioConfig):
-            Audio processing configuration. Defaults to `VitsAudioConfig()`.
+        audio (BaseAudioConfig):
+            Audio processing configuration. Defaults to `BaseAudioConfig()`.
 
         grad_clip (List):
             Gradient clipping thresholds for each optimizer. Defaults to `[1000.0, 1000.0]`.
@@ -349,7 +332,7 @@ class VitsConfig(BaseTTSConfig):
     model: str = "vits"
     # model specific params
     model_args: VitsArgs = field(default_factory=VitsArgs)
-    audio: VitsAudioConfig = field(default_factory=VitsAudioConfig)
+    audio: BaseAudioConfig = field(default_factory=BaseAudioConfig)
 
     # optimizer
     grad_clip: list[float] = field(default_factory=lambda: [1000, 1000])
@@ -398,7 +381,6 @@ class VitsConfig(BaseTTSConfig):
 
     # multi-speaker settings
     # use speaker embedding layer
-    num_speakers: int = 0
     use_speaker_embedding: bool = False
     speakers_file: str | None = None
     speaker_embedding_channels: int = 256

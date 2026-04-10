@@ -54,7 +54,7 @@ class BaseIDManager:
         """Set IDs from data samples.
 
         Args:
-            items (List): Data sampled returned by `load_tts_samples()`.
+            items (List): Data samples returned by `load_tts_samples()`.
         """
         self.name_to_id = self.parse_ids_from_data(items, parse_key=parse_key)
 
@@ -86,10 +86,10 @@ class BaseIDManager:
 
     @staticmethod
     def parse_ids_from_data(items: list[dict[str, Any]], parse_key: str) -> dict[str, int]:
-        """Parse IDs from data samples retured by `load_tts_samples()`.
+        """Parse IDs from data samples returned by `load_tts_samples()`.
 
         Args:
-            items (list): Data sampled returned by `load_tts_samples()`.
+            items (list): Data samples returned by `load_tts_samples()`.
             parse_key (str): The key to being used to parse the data.
         Returns:
             Tuple[Dict]: speaker IDs.
@@ -323,7 +323,7 @@ class EmbeddingManager(BaseIDManager):
         self.encoder_criterion = self.encoder.load_checkpoint(
             self.encoder_config, str(model_path), eval=True, use_cuda=use_cuda, cache=True
         )
-        self.encoder_ap = AudioProcessor(**self.encoder_config.audio)
+        self.encoder_ap = AudioProcessor(self.encoder_config.audio)
 
     @torch.inference_mode()
     def compute_embedding_from_clip(
